@@ -1,0 +1,54 @@
+# Ubuntu, CentOS Stream, and Red Hat Enterprise Linux.
+# Pulls the prebuilt image. `docker compose up --build` rebuilds from this checkout.
+# BlueOnyx uses docker-compose.blueonyx.yml so ports 80 and 443 stay with the panel.
+
+name: boxio
+
+services:
+  boxio:
+    image: ${BOXIO_IMAGE:-ghcr.io/someone275/box_io-docker-server:latest}
+    pull_policy: missing
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+      WEB_PORT: 3847
+      DEVICE_PORT: 5923
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+    volumes:
+      - boxio-data:/data
+    ports:
+      - "5923:5923"
+    expose:
+      - "3847"
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - boxio
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro,z
+      - ./nginx/ensure-certs.sh:/ensure-certs.sh:ro,z
+      - ./nginx/certs:/etc/nginx/certs:z
+      - ./nginx/letsencrypt:/etc/letsencrypt:z
+      - certbot-www:/var/www/certbot
+    command: /bin/sh -c "sh /ensure-certs.sh && nginx -g 'daemon off;'"
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./nginx/letsencrypt:/etc/letsencrypt:z
+      - ./nginx/certs:/etc/nginx/certs:z
+      - certbot-www:/var/www/certbot
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h; done"
+
+volumes:
+  boxio-data:
+  certbot-www:

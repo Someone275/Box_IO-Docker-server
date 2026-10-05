@@ -1,0 +1,39 @@
+{
+  "name": "boxio-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Box IO self-hosted IoT server — device hub, admin, and widget dashboard",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build:web": "npm --prefix web run build",
+    "test:helpers": "NODE_PATH=web/node_modules npx tsx web/scripts/test-grid.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-live-props.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-graph.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-screen.ts && DATA_DIR=/tmp/boxio-history-test npx tsx scripts/test-history.ts && npx tsx scripts/test-webhook.ts && npx tsx scripts/test-watchdog.ts && DATA_DIR=/tmp/boxio-viewers-test npx tsx scripts/test-viewers.ts && DATA_DIR=/tmp/boxio-smtp-test npx tsx scripts/test-smtp-timeout.ts && DATA_DIR=/tmp/boxio-license-return-test npx tsx scripts/test-license-return.ts && DATA_DIR=/tmp/boxio-license-test npx tsx scripts/test-license.ts",
+    "test:widgets": "node scripts/widget-e2e.mjs",
+    "test": "npm run test:helpers && npm run test:widgets"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^7.0.6",
+    "tsx": "^4.20.5",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.3",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/nodemailer": "^6.4.19",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.9.2"
+  }
+}

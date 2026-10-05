@@ -1,0 +1,11 @@
+node_modules
+web/node_modules
+web/dist
+data
+*.db
+.env
+box_io-docker-server.tar.gz
+nginx/certs/*
+!nginx/certs/.gitkeep
+nginx/letsencrypt/*
+!nginx/letsencrypt/.gitkeep

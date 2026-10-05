@@ -1,0 +1,122 @@
+{
+  "pinMap": {
+    "led": 0,
+    "value": 1,
+    "circle_meter": 2,
+    "bar_meter": 3,
+    "input": 4,
+    "grid": 5,
+    "button_round": 6,
+    "button_oval": 7,
+    "slider_h": 8,
+    "slider_v": 9
+  },
+  "firmware": {
+    "0": {
+      "value": "1",
+      "properties": {
+        "label": "LED Lab",
+        "colorOn": "#ff5d73",
+        "colorOff": "#1a2333"
+      }
+    },
+    "1": {
+      "value": "hello-lab",
+      "properties": {
+        "label": "Value Lab",
+        "color": "#f5b942"
+      }
+    },
+    "2": {
+      "value": "72",
+      "properties": {
+        "label": "Circle Lab",
+        "min": "0",
+        "max": "200",
+        "color": "#2ee0c5",
+        "colorMode": "values",
+        "colorStops": "0:#2ee0c5;50:#f5b942;100:#ff5d73"
+      }
+    },
+    "3": {
+      "value": "40",
+      "properties": {
+        "label": "Bar Lab",
+        "min": "10",
+        "max": "90",
+        "color": "#7aa2ff",
+        "colorMode": "percentage",
+        "colorStops": "0:#2ee0c5;60:#f5b942;85:#ff5d73"
+      }
+    },
+    "4": {
+      "properties": {
+        "label": "Input Lab",
+        "colorOn": "#2ee0c5",
+        "colorOff": "#314057"
+      }
+    },
+    "5": {
+      "value": "21,22,40,18",
+      "properties": {
+        "label": "Grid Lab",
+        "rows": "2",
+        "cols": "2",
+        "colorOff": "#1a2333",
+        "colorRules": "0-25:#2ee0c5:all;35-100:#ff5d73:all"
+      }
+    },
+    "6": {
+      "properties": {
+        "label": "Round",
+        "textOn": "Go",
+        "textOff": "Idle",
+        "onValue": "go",
+        "offValue": "0",
+        "sendValue": "go",
+        "colorOn": "#2ee0c5",
+        "colorOff": "#314057",
+        "textColorOn": "#071018",
+        "textColorOff": "#e8eef8"
+      }
+    },
+    "7": {
+      "properties": {
+        "label": "Oval",
+        "textOn": "Stop",
+        "textOff": "Run",
+        "onValue": "stop",
+        "offValue": "0",
+        "sendValue": "stop",
+        "colorOn": "#ff5d73",
+        "colorOff": "#314057",
+        "textColorOn": "#071018",
+        "textColorOff": "#e8eef8"
+      }
+    },
+    "8": {
+      "properties": {
+        "label": "H Slider",
+        "min": "5",
+        "max": "50",
+        "color": "#7aa2ff"
+      }
+    },
+    "9": {
+      "properties": {
+        "label": "V Slider",
+        "min": "-10",
+        "max": "10",
+        "color": "#f5b942"
+      }
+    }
+  },
+  "dashboardWrites": [
+    { "pin": 4, "value": "from-dashboard" },
+    { "pin": 6, "value": "go" },
+    { "pin": 7, "value": "stop" },
+    { "pin": 8, "value": "33" },
+    { "pin": 9, "value": "4" },
+    { "pin": 5, "value": "10,22,40,18" }
+  ]
+}

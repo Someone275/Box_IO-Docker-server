@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-bg: #070b14;
+  --color-panel: #101827;
+  --color-panel-2: #162033;
+  --color-line: #243044;
+  --color-muted: #8b9bb4;
+  --color-ink: #e8eef8;
+  --color-accent: #2ee0c5;
+  --color-accent-2: #5b8cff;
+  --color-warn: #f5b942;
+  --color-danger: #ff5d73;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(46, 224, 197, 0.08), transparent 50%),
+    radial-gradient(900px 500px at 110% 0%, rgba(91, 140, 255, 0.1), transparent 45%),
+    #070b14;
+  color: #e8eef8;
+}
+
+#root {
+  width: 100%;
+  max-width: none;
+  border: 0;
+  text-align: left;
+  min-height: 100svh;
+}
+
+input,
+button,
+select,
+textarea {
+  font-family: inherit;
+}
+
+.grid-dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.widget-scale {
+  container-type: size;
+}
+
+.widget-fit-text {
+  font-size: clamp(0.75rem, 28cqmin, 4.5rem);
+  line-height: 1.1;
+}

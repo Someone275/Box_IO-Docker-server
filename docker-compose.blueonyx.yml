@@ -1,0 +1,29 @@
+# BlueOnyx 5212R. The panel's web server already owns ports 80 and 443,
+# so this file does not start the nginx or certbot containers.
+# Apache on the panel proxies the dashboard to 127.0.0.1:3847.
+# Arduino boards use port 5923 directly.
+
+name: boxio-blueonyx
+
+services:
+  boxio:
+    image: ${BOXIO_IMAGE:-ghcr.io/someone275/box_io-docker-server:latest}
+    pull_policy: missing
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATA_DIR: /data
+      WEB_PORT: 3847
+      DEVICE_PORT: 5923
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+    volumes:
+      - boxio-data:/data
+    ports:
+      - "127.0.0.1:3847:3847"
+      - "5923:5923"
+
+volumes:
+  boxio-data:
