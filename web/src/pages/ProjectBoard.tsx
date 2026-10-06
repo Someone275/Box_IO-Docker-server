@@ -1045,61 +1045,16 @@ export function ProjectBoardPage() {
                             <option value="values">Raw data values</option>
                           </select>
                         </Field>
-                        {selected.type === "circle_meter" ? (
-                          <>
-                            <p className="text-xs text-muted">
-                              Color divisions: {stopEditor.length} of {MAX_COLOR_DIVISIONS}. One color fills the gauge.
-                              Add a division to change color when the reading reaches that number.
-                            </p>
-                            {stopEditor.map((stop, i) => (
-                              <div key={i} className="flex items-center gap-2">
-                                {stopEditor.length > 1 ? (
-                                  <Input
-                                    type="number"
-                                    aria-label={`Division ${i + 1} threshold`}
-                                    value={stop.at}
-                                    onChange={(e) => {
-                                      const colorStops = [...stopEditor];
-                                      colorStops[i] = { ...stop, at: Number(e.target.value) };
-                                      updateProps({ colorStops });
-                                    }}
-                                  />
-                                ) : null}
-                                <Input
-                                  type="color"
-                                  aria-label={`Division ${i + 1} color`}
-                                  value={stop.color}
-                                  onChange={(e) => {
-                                    const colorStops = [...stopEditor];
-                                    colorStops[i] = { ...stop, color: e.target.value };
-                                    updateProps({ colorStops });
-                                  }}
-                                />
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  disabled={stopEditor.length <= 1}
-                                  onClick={() => updateProps({ colorStops: removeColorDivision(stopEditor, i) })}
-                                >
-                                  Remove
-                                </Button>
-                              </div>
-                            ))}
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              disabled={stopEditor.length >= MAX_COLOR_DIVISIONS}
-                              onClick={() => updateProps({ colorStops: addColorDivision(stopEditor) })}
-                            >
-                              Add division
-                            </Button>
-                          </>
-                        ) : (
-                          stopEditor.map((stop, i) => (
-                            <div key={i} className="flex gap-2">
+                        <p className="text-xs text-muted">
+                          Color divisions: {stopEditor.length} of {MAX_COLOR_DIVISIONS}. One color fills the gauge.
+                          Add a division to change color when the reading reaches that number.
+                        </p>
+                        {stopEditor.map((stop, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            {stopEditor.length > 1 ? (
                               <Input
                                 type="number"
+                                aria-label={`Division ${i + 1} threshold`}
                                 value={stop.at}
                                 onChange={(e) => {
                                   const colorStops = [...stopEditor];
@@ -1107,18 +1062,36 @@ export function ProjectBoardPage() {
                                   updateProps({ colorStops });
                                 }}
                               />
-                              <Input
-                                type="color"
-                                value={stop.color}
-                                onChange={(e) => {
-                                  const colorStops = [...stopEditor];
-                                  colorStops[i] = { ...stop, color: e.target.value };
-                                  updateProps({ colorStops });
-                                }}
-                              />
-                            </div>
-                          ))
-                        )}
+                            ) : null}
+                            <Input
+                              type="color"
+                              aria-label={`Division ${i + 1} color`}
+                              value={stop.color}
+                              onChange={(e) => {
+                                const colorStops = [...stopEditor];
+                                colorStops[i] = { ...stop, color: e.target.value };
+                                updateProps({ colorStops });
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              disabled={stopEditor.length <= 1}
+                              onClick={() => updateProps({ colorStops: removeColorDivision(stopEditor, i) })}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={stopEditor.length >= MAX_COLOR_DIVISIONS}
+                          onClick={() => updateProps({ colorStops: addColorDivision(stopEditor) })}
+                        >
+                          Add division
+                        </Button>
                       </>
                     )}
                     {(selected.type === "slider_h" || selected.type === "slider_v") && (
