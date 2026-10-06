@@ -2,15 +2,11 @@
 
 Prebuilt image for the Box IO station. Arduino and ESP32 boards call the device hub on port **5923**. The dashboard is HTTPS on port **443**.
 
-The image name is `box_io-docker-server`. Release **v1.0.0** is that image, already built. Load it with Docker. The server does not compile Node.
+The image on Docker Hub is `someone275/box_io-docker-server`. Tags `latest` and `1.0.0` are already built. The server does not compile Node.
 
 ```bash
-curl -fL -o box_io-docker-server.tar.gz \
-  https://github.com/Someone275/Box_IO-Docker-server/releases/download/v1.0.0/box_io-docker-server.tar.gz
-docker load -i box_io-docker-server.tar.gz
+docker pull someone275/box_io-docker-server:latest
 ```
-
-`docker load` creates `ghcr.io/someone275/box_io-docker-server:latest` and `:1.0.0`. After you upload the same image to Docker Hub, `docker pull YOUR_USER/box_io-docker-server:latest` is the other way to get it. [Upload the image to Docker Hub](#upload-the-image-to-docker-hub) is at the bottom of this file.
 
 | Port | Use |
 | --- | --- |
@@ -195,15 +191,13 @@ Never commit `.env`. Users, device keys, and layouts are stored in the Docker vo
 ### 3. Pull the image and start
 
 ```bash
-curl -fL -o box_io-docker-server.tar.gz \
-  https://github.com/Someone275/Box_IO-Docker-server/releases/download/v1.0.0/box_io-docker-server.tar.gz
-docker load -i box_io-docker-server.tar.gz
+docker compose pull
 docker compose up -d --no-build
 docker compose ps
 docker compose logs -f --tail=50
 ```
 
-`docker load` installs the prebuilt image. `docker compose up` does not build it again. If you already pushed the image to a registry, set `BOXIO_IMAGE` in `.env` and run `docker compose pull` instead of `curl` and `docker load`.
+`docker compose pull` downloads `someone275/box_io-docker-server` from Docker Hub. `docker compose up` does not build it again.
 
 `boxio` and `nginx` should both say Up. Ctrl+C stops following the log. It does not stop the containers. They restart with the machine because the compose file uses `unless-stopped`.
 
@@ -253,16 +247,12 @@ https://boxio.example.com/public/bx_your_device_key/V0
 
 ```bash
 cd ~/Box_IO-Docker-server
-git checkout main
-git pull origin main
-curl -fL -o box_io-docker-server.tar.gz \
-  https://github.com/Someone275/Box_IO-Docker-server/releases/download/v1.0.0/box_io-docker-server.tar.gz
-docker load -i box_io-docker-server.tar.gz
+docker compose pull
 docker compose up -d --no-build
 docker compose ps
 ```
 
-`git pull` updates the proxy files. `docker load` updates the image from the release. If `BOXIO_IMAGE` points at Docker Hub or GHCR, use `docker compose pull` instead of `curl` and `docker load`. The volume stays. `docker compose restart` restarts the containers. `docker compose down` stops them without deleting the volume.
+`docker compose pull` updates the image from Docker Hub. The volume stays. `docker compose restart` restarts the containers. `docker compose down` stops them without deleting the volume.
 
 Nginx runs in the app container’s network and proxies to `127.0.0.1:3847`. After this compose file changes, recreate both containers:
 
@@ -321,12 +311,10 @@ cp .env.example .env
 openssl rand -hex 48
 ```
 
-Put the hex string in `.env` as `JWT_SECRET`. Then load the prebuilt image:
+Put the hex string in `.env` as `JWT_SECRET`. Then pull the image from Docker Hub:
 
 ```bash
-curl -fL -o box_io-docker-server.tar.gz \
-  https://github.com/Someone275/Box_IO-Docker-server/releases/download/v1.0.0/box_io-docker-server.tar.gz
-docker load -i box_io-docker-server.tar.gz
+docker compose -f docker-compose.blueonyx.yml pull
 docker compose -f docker-compose.blueonyx.yml up -d --no-build
 docker compose -f docker-compose.blueonyx.yml ps
 curl -sS http://127.0.0.1:3847/api/health
@@ -357,37 +345,19 @@ The sketch host is the server’s address and the port is `5923`. Example: `http
 
 ```bash
 cd /root/Box_IO-Docker-server
-git checkout main
-git pull origin main
-curl -fL -o box_io-docker-server.tar.gz \
-  https://github.com/Someone275/Box_IO-Docker-server/releases/download/v1.0.0/box_io-docker-server.tar.gz
-docker load -i box_io-docker-server.tar.gz
+docker compose -f docker-compose.blueonyx.yml pull
 docker compose -f docker-compose.blueonyx.yml up -d --no-build
 sh blueonyx/install-proxy.sh boxio.example.com
 ```
 
 The volume keeps users, device keys, and layouts.
 
-## Upload the image to Docker Hub
+## Docker Hub
 
-The image in release v1.0.0 is already built. Docker Hub login is not stored in this repository. To publish a public Docker Hub repository named `box_io-docker-server`, create an access token at `https://hub.docker.com/settings/security`. Do not commit the token. From a machine with Docker:
+Installs pull `someone275/box_io-docker-server:latest`. Compose uses that name unless `.env` sets `BOXIO_IMAGE`.
 
-```bash
-export DOCKERHUB_USERNAME=your-docker-hub-user
-export DOCKERHUB_TOKEN=your-token
-sh push-dockerhub.sh
-```
-
-That logs in, builds this checkout, and pushes `your-docker-hub-user/box_io-docker-server`.
-
-To make installs pull Docker Hub instead of loading the release file, set this in `.env` before `docker compose pull`:
-
-```bash
-BOXIO_IMAGE=your-docker-hub-user/box_io-docker-server:latest
-```
-
-Copy `ci/docker-image.yml` to `.github/workflows/docker-image.yml` to publish `ghcr.io/someone275/box_io-docker-server` on each push to main. Committing that path needs a token with the workflow scope. When the repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are set, the same workflow also pushes `DOCKERHUB_USERNAME/box_io-docker-server`.
+`push-dockerhub.sh` republishes this checkout when `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are set. Do not commit the token.
 
 ## Build on the server instead
 
-`docker compose up --build -d` builds from this checkout. Use that when you are changing the server. A normal install loads the release with `docker load`, then runs `docker compose up -d --no-build`.
+`docker compose up --build -d` builds from this checkout. Use that when you are changing the server. A normal install runs `docker compose pull`, then `docker compose up -d --no-build`.

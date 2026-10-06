@@ -79,7 +79,7 @@ cid=$(compose ps -aq boxio | head -n 1)
 if [ -z "$cid" ]; then
   echo "Creating the Box IO container so it has a data volume."
   if ! compose up -d --no-build boxio; then
-    echo "The prebuilt image is not loaded. Run docker load, or docker compose up --build -d, then import again." >&2
+    echo "The prebuilt image is not on this machine. Run docker compose pull, then import again." >&2
     exit 1
   fi
   cid=$(compose ps -aq boxio | head -n 1)

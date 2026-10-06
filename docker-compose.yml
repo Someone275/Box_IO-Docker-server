@@ -6,7 +6,7 @@ name: boxio
 
 services:
   boxio:
-    image: ${BOXIO_IMAGE:-ghcr.io/someone275/box_io-docker-server:latest}
+    image: ${BOXIO_IMAGE:-someone275/box_io-docker-server:latest}
     pull_policy: missing
     build: .
     restart: unless-stopped
