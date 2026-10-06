@@ -264,6 +264,14 @@ docker compose ps
 
 `git pull` updates the proxy files. `docker load` updates the image from the release. If `BOXIO_IMAGE` points at Docker Hub or GHCR, use `docker compose pull` instead of `curl` and `docker load`. The volume stays. `docker compose restart` restarts the containers. `docker compose down` stops them without deleting the volume.
 
+Nginx runs in the app container’s network and proxies to `127.0.0.1:3847`. After this compose file changes, recreate both containers:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+A 502 or 504 from nginx means that recreate has not happened yet, or the `boxio` container is not running. `docker compose logs --tail=40 boxio nginx` shows which one.
+
 ## BlueOnyx
 
 BlueOnyx 5212R is AlmaLinux 10. Apache on the panel already listens on ports 80 and 443. Use `docker-compose.blueonyx.yml`. Do not start `docker-compose.yml` on this server.
