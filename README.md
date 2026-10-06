@@ -272,6 +272,28 @@ docker compose up -d --force-recreate
 
 A 502 or 504 from nginx means that recreate has not happened yet, or the `boxio` container is not running. `docker compose logs --tail=40 boxio nginx` shows which one.
 
+## Export and import
+
+Use this to move the station you are running now onto another machine. Export writes one archive and starts this station again. The archive contains the database, the license, the JWT secret, and the HTTPS certificate. Keep it private and delete it after import.
+
+On this server:
+
+```bash
+cd ~/Box_IO-Docker-server
+sh scripts/export-data.sh -o ~/boxio-export.tar.gz
+```
+
+Copy `boxio-export.tar.gz` to the next server, then:
+
+```bash
+cd ~/Box_IO-Docker-server
+sh scripts/import-data.sh ~/boxio-export.tar.gz
+curl -sk https://127.0.0.1/api/health
+rm -f ~/boxio-export.tar.gz
+```
+
+On BlueOnyx, add `-f docker-compose.blueonyx.yml` to both commands. Sign in with the same admin account.
+
 ## BlueOnyx
 
 BlueOnyx 5212R is AlmaLinux 10. Apache on the panel already listens on ports 80 and 443. Use `docker-compose.blueonyx.yml`. Do not start `docker-compose.yml` on this server.

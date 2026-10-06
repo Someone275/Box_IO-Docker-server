@@ -5,6 +5,7 @@ data
 *.db
 .env
 box_io-docker-server.tar.gz
+boxio-export.tar.gz
 nginx/certs/*
 !nginx/certs/.gitkeep
 nginx/letsencrypt/*
