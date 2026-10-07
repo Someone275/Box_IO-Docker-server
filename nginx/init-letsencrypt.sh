@@ -25,3 +25,4 @@ docker compose run --rm --entrypoint /bin/sh nginx -c \
 
 docker compose exec nginx nginx -s reload
 echo "Installed Let's Encrypt certificate for $DOMAIN"
+echo "Add nginx/renew-cert.sh to crontab so it renews. The install pages show the line."

@@ -229,7 +229,17 @@ EMAIL=you@example.com ./nginx/issue-cert-dns.sh
 dig +short TXT _acme-challenge.boxio.example.com
 ```
 
-The DNS certificate is not renewed by the certbot loop. Run `issue-cert-dns.sh` again before 90 days.
+The certificate from `init-letsencrypt.sh` lasts 90 days. Let’s Encrypt replaces it when fewer than 30 days remain. Nginx serves a copy of the certificate, so reload it after each renewal. Run the renew script once, then add it to crontab. Cron does not expand `~`. Change `/home/user` if the account name is different. The account must be allowed to run Docker.
+
+```bash
+cd ~/Box_IO-Docker-server
+chmod +x nginx/renew-cert.sh
+sh nginx/renew-cert.sh
+(crontab -l 2>/dev/null | grep -v renew-cert.sh; echo '15 3 * * * cd /home/user/Box_IO-Docker-server && /home/user/Box_IO-Docker-server/nginx/renew-cert.sh >>/home/user/boxio-cert-renew.log 2>&1') | crontab -
+crontab -l
+```
+
+`15 3 * * *` is 03:15 every night. A certificate from `issue-cert-dns.sh` is not renewed by this job. Run that script again before 90 days. On BlueOnyx the panel renews the site certificate, so do not add this crontab there.
 
 ### 5. Create the admin account
 
