@@ -121,8 +121,11 @@ export function recordPinHistory(userId: number, deviceKeyId: number, pin: numbe
      ON CONFLICT(device_key_id, pin, interval_sec, bucket) DO UPDATE SET value = excluded.value`,
   );
   const prune = db.prepare(
-    `DELETE FROM pin_history
-     WHERE device_key_id = ? AND pin = ? AND interval_sec = ? AND bucket < ?`,
+    `DELETE FROM pin_history WHERE rowid IN (
+       SELECT rowid FROM pin_history
+       WHERE device_key_id = ? AND pin = ? AND interval_sec = ? AND bucket < ?
+       LIMIT 400
+     )`,
   );
   for (const interval of intervals) {
     insert.run(deviceKeyId, pin, interval, alignBucket(nowSec, interval), numeric);
@@ -142,24 +145,22 @@ export function readPinHistory(
   const to = Math.floor(toSec);
   if (to <= from) return [];
   const group = Math.max(1, intervalSec, Math.ceil((to - from) / Math.max(1, maxPoints)));
-  const rows = db
-    .prepare(
-      `SELECT h.bucket AS bucket, h.value AS value
-       FROM pin_history h
-       INNER JOIN (
-         SELECT MAX(bucket) AS bucket
-         FROM pin_history
-         WHERE device_key_id = ? AND pin = ? AND interval_sec = ? AND bucket >= ? AND bucket < ?
-         GROUP BY bucket / ${group}
-       ) latest
-         ON h.device_key_id = ? AND h.pin = ? AND h.interval_sec = ? AND h.bucket = latest.bucket
-       ORDER BY h.bucket`,
-    )
-    .all(deviceKeyId, pin, intervalSec, from, to, deviceKeyId, pin, intervalSec) as {
-    bucket: number;
-    value: number;
-  }[];
-  return rows.map((row) => ({ t: row.bucket * 1000, v: row.value }));
+  // One small index lookup per point. Grouping the whole retention window
+  // in a single query holds the process until it finishes, and the dashboard
+  // then waits out the gateway timeout.
+  const latest = db.prepare(
+    `SELECT bucket, value FROM pin_history
+     WHERE device_key_id = ? AND pin = ? AND interval_sec = ? AND bucket >= ? AND bucket < ?
+     ORDER BY bucket DESC LIMIT 1`,
+  );
+  const points: { t: number; v: number }[] = [];
+  for (let slot = from; slot < to; slot += group) {
+    const row = latest.get(deviceKeyId, pin, intervalSec, slot, Math.min(to, slot + group)) as
+      | { bucket: number; value: number }
+      | undefined;
+    if (row) points.push({ t: row.bucket * 1000, v: row.value });
+  }
+  return points;
 }
 
 export function findGraphWidget(layoutJson: string, widgetId: string): SavedGraph | null {

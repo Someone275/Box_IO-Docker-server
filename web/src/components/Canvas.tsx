@@ -131,7 +131,7 @@ export function Canvas({
   }
 
   return (
-    <div ref={hostRef} className="flex h-[min(70vh,900px)] w-full flex-col items-center justify-center overflow-hidden">
+    <div ref={hostRef} className="flex h-[min(46svh,520px)] w-full flex-col items-center justify-center overflow-hidden md:h-[min(70vh,900px)]">
       {showFrameLabel && (
         <div data-testid="screen-frame-label" className="mb-1 h-7 text-center text-xs text-muted">
           {frameLabel}
@@ -208,9 +208,11 @@ export function Canvas({
             </div>
             {editing && (
               <div
-                className="absolute bottom-1 right-1 z-10 h-4 w-4 cursor-nwse-resize rounded-sm bg-accent/80"
+                className="absolute bottom-0 right-0 z-20 flex h-11 w-11 cursor-nwse-resize touch-none items-end justify-end"
                 onPointerDown={(e) => startDrag(e, widget.id, "resize")}
-              />
+              >
+                <span className="mb-1 mr-1 h-4 w-4 rounded-sm bg-accent shadow-sm" />
+              </div>
             )}
           </div>
         );

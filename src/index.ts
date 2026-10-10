@@ -1,12 +1,12 @@
 import express from "express";
 import cors from "cors";
-import { createServer } from "node:http";
-import { existsSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
 import { createDeviceRouter } from "./device.js";
 import { createWebRouter } from "./webapi.js";
-import { sweepOfflineDevices } from "./db.js";
+import { dataDir, sweepOfflineDevices } from "./db.js";
 import { addClient } from "./broadcast.js";
 import { readToken } from "./auth.js";
 import { mountPublicPins } from "./public-pin.js";
@@ -39,15 +39,25 @@ webApp.use("/api", createWebRouter());
 webApp.use("/hw", createDeviceRouter());
 mountPublicPins(webApp);
 
+webApp.use((error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.path.startsWith("/api") && !req.path.includes("/api/")) {
+    next(error);
+    return;
+  }
+  const message = error instanceof Error && error.message ? error.message : "Request failed";
+  if (!res.headersSent) res.status(500).json({ error: message });
+});
+
 if (existsSync(webDir)) {
   webApp.use(express.static(webDir));
-  webApp.use((req, res, next) => {
+  webApp.use((req, res) => {
     if (
       req.path.startsWith("/api") ||
+      req.path.includes("/api/") ||
       req.path.startsWith("/hw") ||
       req.path.startsWith("/ws")
     ) {
-      next();
+      res.status(404).json({ error: "That address was not found on this Box IO server" });
       return;
     }
     res.sendFile(join(webDir, "index.html"));
@@ -61,7 +71,16 @@ if (existsSync(webDir)) {
   });
 }
 
+function tune(server: Server): void {
+  // Node's default headers timeout is 60 seconds. A proxy that keeps the
+  // socket open hits that limit and then waits out its own gateway timeout.
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 70_000;
+  server.requestTimeout = 120_000;
+}
+
 const webServer = createServer(webApp);
+tune(webServer);
 const wss = new WebSocketServer({ server: webServer, path: "/ws" });
 
 wss.on("connection", (ws, req) => {
@@ -76,15 +95,25 @@ wss.on("connection", (ws, req) => {
   ws.send(JSON.stringify({ type: "hello", user: user.username }));
 });
 
-deviceApp.listen(DEVICE_PORT, "0.0.0.0", () => {
+const deviceServer = deviceApp.listen(DEVICE_PORT, "0.0.0.0", () => {
   console.log(`Box IO device HTTP  http://0.0.0.0:${DEVICE_PORT}`);
 });
+tune(deviceServer);
 
 webServer.listen(WEB_PORT, "0.0.0.0", () => {
   console.log(`Box IO web + API    http://0.0.0.0:${WEB_PORT}`);
 });
 
 setInterval(sweepOfflineDevices, 10_000);
+// Touched every second. keep-up.sh restarts this process when the file goes stale
+// so a stuck program comes back without recreating the proxy.
+setInterval(() => {
+  try {
+    writeFileSync(join(dataDir, "alive"), String(Date.now()));
+  } catch {
+    /* a full disk should not take the server down */
+  }
+}, 1000).unref();
 setInterval(() => {
   void refreshLicenseFromServer();
 }, 60 * 60 * 1000);

@@ -20,22 +20,24 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
     volumes:
       - boxio-data:/data
+      # Host copy wins so an old image still restarts itself after this file is updated.
+      - ./keep-up.sh:/keep-up.sh:ro,z
+    command: ["/bin/sh", "/keep-up.sh"]
     ports:
-      - "80:80"
-      - "443:443"
       - "5923:5923"
     expose:
       - "3847"
 
   nginx:
     image: nginx:1.27-alpine
-    # Same network namespace as boxio, so the proxy uses 127.0.0.1:3847.
-    # After a recreate, bridge forwarding can drop that connection and nginx
-    # answers 502 or 504 even though the app is healthy.
-    network_mode: "service:boxio"
+    # Own network. Sharing boxio's network made the proxy reach 127.0.0.1
+    # once and then hang, with nothing in the app log.
     restart: unless-stopped
     depends_on:
       - boxio
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro,z
       - ./nginx/ensure-certs.sh:/ensure-certs.sh:ro,z

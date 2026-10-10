@@ -19,10 +19,13 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY src ./src
 COPY tsconfig.json ./
+COPY keep-up.sh /keep-up.sh
 COPY --from=web /web/dist ./web/dist
-RUN mkdir -p /data
+RUN chmod +x /keep-up.sh && mkdir -p /data
 EXPOSE 3847 5923
 VOLUME ["/data"]
-HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.WEB_PORT||3847)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["npx", "tsx", "src/index.ts"]
+# The file is touched every second by the program. A second Node process
+# for this check was enough to stall a small server.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=40s --retries=3 \
+  CMD sh -c 'test -f /data/alive && test $(( $(date +%s) - $(stat -c %Y /data/alive) )) -lt 20'
+CMD ["/bin/sh", "/keep-up.sh"]

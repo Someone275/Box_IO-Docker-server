@@ -5,9 +5,11 @@ import {
   FolderKanban,
   KeyRound,
   LogOut,
+  Menu,
   Settings,
   ShieldCheck,
   Users,
+  X,
 } from "lucide-react";
 import { api, setToken } from "@/lib/api";
 import type { User } from "@/lib/types";
@@ -17,6 +19,7 @@ export function AppShell({ user }: { user: User }) {
   const navigate = useNavigate();
   const [licensed, setLicensed] = useState(true);
   const [pendingCheckout, setPendingCheckout] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     let stop = false;
     function apply(data: { licensed: boolean; pendingCheckout?: string }) {
@@ -56,63 +59,87 @@ export function AppShell({ user }: { user: User }) {
     ...(user.role === "admin" ? [{ to: "/settings", label: "Settings", icon: Settings }] : []),
   ];
 
+  function signOut() {
+    setToken(null);
+    navigate("/login");
+  }
+
+  const menu = (
+    <>
+      <div className="mb-8 flex items-center gap-2 px-2">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15 text-accent">
+          <Cpu size={18} />
+        </div>
+        <div>
+          <div className="text-sm font-semibold tracking-wide">BOX IO</div>
+          <div className="text-[11px] text-muted">Self-hosted IoT</div>
+        </div>
+      </div>
+      <nav className="flex flex-1 flex-col gap-1">
+        {links.map((link) => (
+          <NavLink
+            key={link.to}
+            to={link.to}
+            end={link.to === "/"}
+            onClick={() => setMenuOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-2 rounded-lg px-3 py-3 text-sm md:py-2",
+                isActive ? "bg-accent/10 text-accent" : "text-muted hover:bg-white/5 hover:text-ink",
+              )
+            }
+          >
+            <link.icon size={16} />
+            {link.label}
+          </NavLink>
+        ))}
+      </nav>
+      <div className="mt-auto border-t border-line pt-3">
+        <div className="px-2 text-xs text-muted">{user.username}</div>
+        <button
+          type="button"
+          className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-3 text-sm text-muted hover:bg-white/5 hover:text-ink md:py-2"
+          onClick={signOut}
+        >
+          <LogOut size={16} />
+          Sign out
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div className="flex min-h-svh">
-      <aside className="hidden w-60 shrink-0 border-r border-line bg-panel/70 p-4 md:flex md:flex-col">
-        <div className="mb-8 flex items-center gap-2 px-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/15 text-accent">
-            <Cpu size={18} />
-          </div>
-          <div>
-            <div className="text-sm font-semibold tracking-wide">BOX IO</div>
-            <div className="text-[11px] text-muted">Self-hosted IoT</div>
-          </div>
-        </div>
-        <nav className="flex flex-1 flex-col gap-1">
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === "/"}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
-                  isActive ? "bg-accent/10 text-accent" : "text-muted hover:bg-white/5 hover:text-ink",
-                )
-              }
+      <aside className="hidden w-60 shrink-0 border-r border-line bg-panel/70 p-4 md:flex md:flex-col">{menu}</aside>
+      {menuOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button type="button" className="absolute inset-0 bg-black/50" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col border-r border-line bg-panel p-4 shadow-xl">
+            <button
+              type="button"
+              className="mb-2 self-end rounded-lg p-2 text-muted"
+              aria-label="Close menu"
+              onClick={() => setMenuOpen(false)}
             >
-              <link.icon size={16} />
-              {link.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="mt-auto border-t border-line pt-3">
-          <div className="px-2 text-xs text-muted">{user.username}</div>
+              <X size={18} />
+            </button>
+            {menu}
+          </aside>
+        </div>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-bg/95 px-3 py-2 backdrop-blur md:hidden">
           <button
             type="button"
-            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-white/5 hover:text-ink"
-            onClick={() => {
-              setToken(null);
-              navigate("/login");
-            }}
+            className="rounded-lg p-2 text-ink"
+            aria-label="Menu"
+            onClick={() => setMenuOpen(true)}
           >
-            <LogOut size={16} />
-            Sign out
+            <Menu size={22} />
           </button>
-        </div>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-line px-4 py-3 md:hidden">
           <div className="font-semibold">BOX IO</div>
-          <div className="flex gap-2 text-xs">
-            {links.map((l) => (
-              <NavLink key={l.to} to={l.to} className="text-muted">
-                {l.label}
-              </NavLink>
-            ))}
-          </div>
         </header>
-        <main className="flex-1 p-4 md:p-8">
+        <main className="flex-1 p-4 pb-24 md:p-8">
           {licensed ? null : (
             <p className="mb-4 rounded-lg border border-line bg-panel px-3 py-2 text-sm">
               {viewer

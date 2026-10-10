@@ -264,7 +264,7 @@ docker compose ps
 
 `docker compose pull` updates the image from Docker Hub. The volume stays. `docker compose restart` restarts the containers. `docker compose down` stops them without deleting the volume.
 
-Nginx runs in the app container’s network and proxies to `127.0.0.1:3847`. After this compose file changes, recreate both containers:
+Nginx has its own network and proxies to the app at `boxio:3847`. `keep-up.sh` restarts the app when it stops answering, and the proxy stays up. After this compose file changes, recreate both containers:
 
 ```bash
 docker compose up -d --force-recreate

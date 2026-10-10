@@ -57,8 +57,9 @@ insert_include() {
       buf = buf $0 ORS
       if ($1 == "ServerName" && $2 == name) hit = 1
       if ($0 ~ "</VirtualHost>") {
-        if (hit && buf !~ /boxio-proxy\.inc/) {
-          sub("</VirtualHost>", inc ORS "</VirtualHost>", buf)
+        if (hit) {
+          gsub(/[ \t]*Include \/etc\/httpd\/boxio-proxy\.inc[ \t]*\n/, "", buf)
+          sub(/<VirtualHost[^\n]*\n/, "&" inc ORS, buf)
         }
         printf "%s", buf
         inhost=0

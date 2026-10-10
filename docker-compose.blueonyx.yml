@@ -1,5 +1,5 @@
 # BlueOnyx 5212R. The panel's web server already owns ports 80 and 443,
-# so this file does not start the nginx or certbot containers.
+# so this file does not start the Ubuntu nginx or certbot containers.
 # Apache on the panel proxies the dashboard to 127.0.0.1:3847.
 # Arduino boards use port 5923 directly.
 
@@ -21,6 +21,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
     volumes:
       - boxio-data:/data
+      - ./keep-up.sh:/keep-up.sh:ro,z
+    command: ["/bin/sh", "/keep-up.sh"]
     ports:
       - "127.0.0.1:3847:3847"
       - "5923:5923"

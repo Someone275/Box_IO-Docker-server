@@ -56,6 +56,7 @@ export function ProjectBoardPage() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [properties, setProperties] = useState<Record<string, Record<string, string>>>({});
   const [editing, setEditing] = useState(true);
+  const [addOpen, setAddOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
@@ -678,7 +679,7 @@ export function ProjectBoardPage() {
         </div>
         {boardEditing && (
           <div className="space-y-4 xl:max-h-[calc(100svh-8rem)] xl:overflow-auto">
-            <Card>
+            <Card className="hidden md:block">
               <CardHeader>
                 <CardTitle>Add widget</CardTitle>
               </CardHeader>
@@ -1050,7 +1051,7 @@ export function ProjectBoardPage() {
                           Add a division to change color when the reading reaches that number.
                         </p>
                         {stopEditor.map((stop, i) => (
-                          <div key={i} className="flex items-center gap-2">
+                          <div key={i} className="flex flex-wrap items-center gap-2">
                             {stopEditor.length > 1 ? (
                               <Input
                                 type="number"
@@ -1150,6 +1151,40 @@ export function ProjectBoardPage() {
           </div>
         )}
       </div>
+      {boardEditing && (
+        <button
+          type="button"
+          className="fixed bottom-4 left-4 z-30 flex items-center gap-2 rounded-full bg-accent px-4 py-3 text-sm font-semibold text-[#071018] shadow-lg md:hidden"
+          onClick={() => setAddOpen(true)}
+        >
+          <Plus size={18} />
+          Add widget
+        </button>
+      )}
+      {addOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button type="button" className="absolute inset-0 bg-black/60" aria-label="Close" onClick={() => setAddOpen(false)} />
+          <div className="absolute inset-x-0 bottom-0 max-h-[70svh] overflow-auto rounded-t-2xl border border-line bg-panel p-4">
+            <div className="mb-2 text-sm font-semibold">Add widget</div>
+            <div className="grid">
+              {(Object.keys(WIDGET_META) as WidgetType[]).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className="rounded-lg px-2 py-3 text-left hover:bg-white/5"
+                  onClick={() => {
+                    addWidget(type);
+                    setAddOpen(false);
+                  }}
+                >
+                  <div className="text-sm text-ink">{WIDGET_META[type].name}</div>
+                  <div className="text-xs text-muted">{WIDGET_META[type].hint}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1265,7 +1300,7 @@ function GraphFields({
       />
       <p className="text-xs text-muted">Both scales stay off until you turn them on. Time labels the bottom. Data draws horizontal value lines.</p>
       {series.map((item, index) => (
-        <div key={`${item.pin}-${index}`} className="flex items-center gap-2">
+        <div key={`${item.pin}-${index}`} className="flex flex-wrap items-center gap-2">
           <Input
             type="number"
             min={0}
