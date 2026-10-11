@@ -8,7 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build:web": "npm --prefix web run build",
-    "test:helpers": "NODE_PATH=web/node_modules npx tsx web/scripts/test-grid.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-live-props.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-graph.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-screen.ts && DATA_DIR=/tmp/boxio-history-test npx tsx scripts/test-history.ts && npx tsx scripts/test-webhook.ts && npx tsx scripts/test-watchdog.ts && DATA_DIR=/tmp/boxio-viewers-test npx tsx scripts/test-viewers.ts && DATA_DIR=/tmp/boxio-smtp-test npx tsx scripts/test-smtp-timeout.ts && DATA_DIR=/tmp/boxio-license-return-test npx tsx scripts/test-license-return.ts && DATA_DIR=/tmp/boxio-license-test npx tsx scripts/test-license.ts",
+    "test:helpers": "NODE_PATH=web/node_modules npx tsx web/scripts/test-grid.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-live-props.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-graph.ts && NODE_PATH=web/node_modules npx tsx web/scripts/test-screen.ts && DATA_DIR=/tmp/boxio-history-test npx tsx scripts/test-history.ts && npx tsx scripts/test-webhook.ts && npx tsx scripts/test-watchdog.ts && DATA_DIR=/tmp/boxio-viewers-test npx tsx scripts/test-viewers.ts && DATA_DIR=/tmp/boxio-smtp-test npx tsx scripts/test-smtp-timeout.ts && DATA_DIR=/tmp/boxio-license-return-test npx tsx scripts/test-license-return.ts && DATA_DIR=/tmp/boxio-license-test npx tsx scripts/test-license.ts && DATA_DIR=/tmp/boxio-status-test npx tsx scripts/test-device-status.ts",
     "test:widgets": "node scripts/widget-e2e.mjs",
     "test": "npm run test:helpers && npm run test:widgets"
   },

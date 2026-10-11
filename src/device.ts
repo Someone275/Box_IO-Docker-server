@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, markDeviceSeen } from "./db.js";
+import { db, markDeviceSeen, sweepOfflineDevices } from "./db.js";
 import { emitPinUpdate, emitDeviceStatus } from "./broadcast.js";
 import { sendEmail, sendSms } from "./notify.js";
 import { watchdogConfig } from "./watchdog.js";
@@ -12,6 +12,11 @@ interface DeviceRow {
   name: string;
   key: string;
 }
+
+/** Virtual pin that follows the device key. 1 while the key is online, 0 after it goes quiet. */
+export const DEVICE_STATUS_PIN = 100;
+
+let writingStatusPin = false;
 
 function deviceFromReq(req: {
   header: (n: string) => string | undefined;
@@ -88,7 +93,8 @@ function writePinProperty(device: DeviceRow, pin: number, prop: string, value: s
   return properties;
 }
 
-function writePin(device: DeviceRow, pin: number, value: string, fromHw: boolean): void {
+function writePin(device: DeviceRow, pin: number, value: string, fromHw: boolean, hooks = fromHw): void {
+  if (pin === DEVICE_STATUS_PIN && !writingStatusPin) return;
   db.prepare(
     `INSERT INTO pin_values (device_key_id, pin, value, updated_at)
      VALUES (?, ?, ?, datetime('now'))
@@ -101,8 +107,52 @@ function writePin(device: DeviceRow, pin: number, value: string, fromHw: boolean
   }
   emitPinUpdate(device.user_id, device.id, pin, value, pinProperties(device.id, pin));
   recordPinHistory(device.user_id, device.id, pin, value);
-  if (fromHw) {
+  if (hooks) {
     void import("./webhook.js").then((mod) => mod.fireWebhooksForPin(device, pin, value));
+  }
+}
+
+export function deviceStatusValue(deviceKeyId: number): string {
+  const row = db
+    .prepare("SELECT value FROM pin_values WHERE device_key_id = ? AND pin = ?")
+    .get(deviceKeyId, DEVICE_STATUS_PIN) as { value: string } | undefined;
+  return row?.value === "1" ? "1" : "0";
+}
+
+/** Store pin 100 for this key. Skips the write when the value is already current. */
+export function publishDeviceStatusPin(device: DeviceRow, online: boolean): void {
+  const value = online ? "1" : "0";
+  const row = db
+    .prepare("SELECT value FROM pin_values WHERE device_key_id = ? AND pin = ?")
+    .get(device.id, DEVICE_STATUS_PIN) as { value: string } | undefined;
+  if (row?.value === value) return;
+  writingStatusPin = true;
+  try {
+    writePin(device, DEVICE_STATUS_PIN, value, true, false);
+  } finally {
+    writingStatusPin = false;
+  }
+}
+
+export function ensureDeviceStatusPins(): void {
+  const rows = db
+    .prepare("SELECT id, user_id, name, key, online FROM device_keys")
+    .all() as unknown as (DeviceRow & { online: number })[];
+  for (const row of rows) publishDeviceStatusPin(row, row.online === 1);
+}
+
+/** Mark quiet keys offline and set their status pin to 0. */
+export function sweepDevicePresence(): void {
+  const stale = db
+    .prepare(
+      `SELECT id, user_id, name, key FROM device_keys
+       WHERE online = 1 AND (last_seen IS NULL OR last_seen < datetime('now', '-20 seconds'))`,
+    )
+    .all() as unknown as DeviceRow[];
+  sweepOfflineDevices();
+  for (const device of stale) {
+    publishDeviceStatusPin(device, false);
+    emitDeviceStatus(device.user_id, device.id, false);
   }
 }
 
@@ -117,6 +167,7 @@ export function createDeviceRouter(): Router {
     }
     (req as typeof req & { device: DeviceRow }).device = device;
     markDeviceSeen(device.id);
+    publishDeviceStatusPin(device, true);
     emitDeviceStatus(device.user_id, device.id, true);
     next();
   });
@@ -134,6 +185,10 @@ export function createDeviceRouter(): Router {
       res.status(400).json({ error: "pin required (0-127)" });
       return;
     }
+    if (pin === DEVICE_STATUS_PIN) {
+      res.json({ ok: true, pin, value: deviceStatusValue(device.id) });
+      return;
+    }
     writePin(device, pin, value, true);
     res.json({ ok: true, pin, value });
   });
@@ -143,6 +198,12 @@ export function createDeviceRouter(): Router {
     const pin = pinNum(req.query.pin ?? req.body?.pin);
     if (pin < 0) {
       res.status(400).json({ error: "pin required" });
+      return;
+    }
+    if (pin === DEVICE_STATUS_PIN) {
+      const online = db.prepare("SELECT online FROM device_keys WHERE id = ?").get(device.id) as { online: number } | undefined;
+      publishDeviceStatusPin(device, online?.online === 1);
+      res.json({ ok: true, pin, value: licenseAllowsData() ? deviceStatusValue(device.id) : "" });
       return;
     }
     const row = db

@@ -13,7 +13,7 @@ import {
   signToken,
   type AuthedRequest,
 } from "./auth.js";
-import { pinProperties, writePin, writePinProperty, type DeviceRow } from "./device.js";
+import { DEVICE_STATUS_PIN, deviceStatusValue, pinProperties, publishDeviceStatusPin, writePin, writePinProperty, type DeviceRow } from "./device.js";
 import { sendEmail, sendSms, verifySmtp } from "./notify.js";
 import {
   acceptInvite,
@@ -433,10 +433,17 @@ export function createWebRouter(): Router {
     const result = db
       .prepare("INSERT INTO device_keys (user_id, name, key) VALUES (?, ?, ?)")
       .run(user.id, parsed.data.name.trim(), key);
+    const created = {
+      id: Number(result.lastInsertRowid),
+      user_id: user.id,
+      name: parsed.data.name.trim(),
+      key,
+    };
+    publishDeviceStatusPin(created, false);
     res.json({
       key: {
-        id: Number(result.lastInsertRowid),
-        name: parsed.data.name.trim(),
+        id: created.id,
+        name: created.name,
         key,
         last_seen: null,
         online: 0,
@@ -730,8 +737,8 @@ export function createWebRouter(): Router {
       return;
     }
     const pin = Number(req.params.pin);
-    const value = String(req.body?.value ?? "");
-    writePin(device, pin, value, false);
+    const value = pin === DEVICE_STATUS_PIN ? deviceStatusValue(device.id) : String(req.body?.value ?? "");
+    if (pin !== DEVICE_STATUS_PIN) writePin(device, pin, value, false);
     res.json({
       ok: true,
       pin,

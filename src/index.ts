@@ -4,9 +4,9 @@ import { createServer, type Server } from "node:http";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WebSocketServer } from "ws";
-import { createDeviceRouter } from "./device.js";
+import { createDeviceRouter, ensureDeviceStatusPins, sweepDevicePresence } from "./device.js";
 import { createWebRouter } from "./webapi.js";
-import { dataDir, sweepOfflineDevices } from "./db.js";
+import { dataDir } from "./db.js";
 import { addClient } from "./broadcast.js";
 import { readToken } from "./auth.js";
 import { mountPublicPins } from "./public-pin.js";
@@ -104,7 +104,8 @@ webServer.listen(WEB_PORT, "0.0.0.0", () => {
   console.log(`Box IO web + API    http://0.0.0.0:${WEB_PORT}`);
 });
 
-setInterval(sweepOfflineDevices, 10_000);
+ensureDeviceStatusPins();
+setInterval(sweepDevicePresence, 10_000);
 // Touched every second. keep-up.sh restarts this process when the file goes stale
 // so a stuck program comes back without recreating the proxy.
 setInterval(() => {
