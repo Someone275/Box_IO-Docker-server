@@ -34,7 +34,7 @@ deviceApp.use("/hw", createDeviceRouter());
 const webApp = express();
 webApp.disable("x-powered-by");
 webApp.use(cors({ origin: true, credentials: true }));
-webApp.use(express.json({ limit: "1mb" }));
+webApp.use(express.json({ limit: "8mb" }));
 webApp.use("/api", createWebRouter());
 webApp.use("/hw", createDeviceRouter());
 mountPublicPins(webApp);

@@ -5,6 +5,7 @@ import { sendEmail, sendSms } from "./notify.js";
 import { watchdogConfig } from "./watchdog.js";
 import { recordPinHistory } from "./history.js";
 import { licenseAllowsData } from "./license.js";
+import { clientPinValue, DEVICE_STATUS_PIN } from "./status-pin.js";
 
 interface DeviceRow {
   id: number;
@@ -13,8 +14,7 @@ interface DeviceRow {
   key: string;
 }
 
-/** Virtual pin that follows the device key. 1 while the key is online, 0 after it goes quiet. */
-export const DEVICE_STATUS_PIN = 100;
+export { DEVICE_STATUS_PIN } from "./status-pin.js";
 
 let writingStatusPin = false;
 
@@ -203,7 +203,7 @@ export function createDeviceRouter(): Router {
     if (pin === DEVICE_STATUS_PIN) {
       const online = db.prepare("SELECT online FROM device_keys WHERE id = ?").get(device.id) as { online: number } | undefined;
       publishDeviceStatusPin(device, online?.online === 1);
-      res.json({ ok: true, pin, value: licenseAllowsData() ? deviceStatusValue(device.id) : "" });
+      res.json({ ok: true, pin, value: clientPinValue(pin, deviceStatusValue(device.id), licenseAllowsData()) });
       return;
     }
     const row = db
@@ -247,7 +247,7 @@ export function createDeviceRouter(): Router {
     const visible = licenseAllowsData();
     res.json({
       ok: true,
-      values: visible ? values : values.map((row) => ({ ...row, value: "" })),
+      values: values.map((row) => ({ ...row, value: clientPinValue(row.pin, row.value, visible) })),
       properties: visible ? props : props.map((row) => ({ ...row, value: "" })),
     });
   });

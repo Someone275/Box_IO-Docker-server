@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db.js";
 import { licenseAllowsData } from "./license.js";
+import { clientPinValue, DEVICE_STATUS_PIN } from "./status-pin.js";
 
 const hits = new Map<string, { n: number; reset: number }>();
 
@@ -69,18 +70,21 @@ export function mountPublicPins(app: Express): void {
       sendPin(res, plain, 429, "", { error: "Too many reads" });
       return;
     }
-    if (!licenseAllowsData()) {
-      sendPin(res, plain, 403, "", { error: "A valid license is required", pin: parsed.pin });
-      return;
-    }
-    const device = db.prepare("SELECT id FROM device_keys WHERE key = ?").get(key) as { id: number } | undefined;
+    const device = db.prepare("SELECT id, online FROM device_keys WHERE key = ?").get(key) as
+      | { id: number; online: number }
+      | undefined;
     if (!device) {
       sendPin(res, plain, 404, "", { error: "Unknown device key" });
+      return;
+    }
+    if (!licenseAllowsData() && parsed.pin !== DEVICE_STATUS_PIN) {
+      sendPin(res, plain, 403, "", { error: "A valid license is required", pin: parsed.pin });
       return;
     }
     const row = db
       .prepare("SELECT value FROM pin_values WHERE device_key_id = ? AND pin = ?")
       .get(device.id, parsed.pin) as { value: string } | undefined;
-    sendPin(res, plain, 200, row?.value ?? "", { pin: parsed.pin });
+    const stored = parsed.pin === DEVICE_STATUS_PIN ? (row?.value ?? (device.online === 1 ? "1" : "0")) : (row?.value ?? "");
+    sendPin(res, plain, 200, clientPinValue(parsed.pin, stored, licenseAllowsData()), { pin: parsed.pin });
   });
 }

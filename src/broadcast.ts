@@ -1,6 +1,7 @@
 import type { WebSocket } from "ws";
 import type { JwtUser } from "./types.js";
 import { licenseAllowsData } from "./license.js";
+import { clientPinValue } from "./status-pin.js";
 import { memberIdsForDevice } from "./viewers.js";
 
 export interface ClientSocket {
@@ -39,7 +40,7 @@ export function emitPinUpdate(
     type: "pin",
     deviceKeyId,
     pin,
-    value: visible ? value : "",
+    value: clientPinValue(pin, value, visible),
     properties: visible ? (properties ?? {}) : {},
     licensed: visible,
   };

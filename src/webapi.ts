@@ -14,6 +14,7 @@ import {
   type AuthedRequest,
 } from "./auth.js";
 import { DEVICE_STATUS_PIN, deviceStatusValue, pinProperties, publishDeviceStatusPin, writePin, writePinProperty, type DeviceRow } from "./device.js";
+import { clientPinValue } from "./status-pin.js";
 import { sendEmail, sendSms, verifySmtp } from "./notify.js";
 import {
   acceptInvite,
@@ -34,6 +35,7 @@ import { clampHistoryRange, findGraphWidget, graphSeriesOf, readPinHistory, samp
 import { licenseAllowsData } from "./license.js";
 import { mountLicenseRoutes } from "./license-api.js";
 import { emitToUser } from "./broadcast.js";
+import { buildBackup, restoreBackup } from "./backup.js";
 
 const usernameSchema = z
   .string()
@@ -97,9 +99,11 @@ function dashboardOrigin(req: { protocol?: string; get(name: string): string | u
   return `${proto}://${host}`;
 }
 
-function hideRows<T extends { value: string }>(rows: T[]): T[] {
-  if (licenseAllowsData()) return rows;
-  return rows.map((row) => ({ ...row, value: "" }));
+function hideRows<T extends { value: string; pin?: number; prop?: string }>(rows: T[]): T[] {
+  const licensed = licenseAllowsData();
+  return rows.map((row) =>
+    row.prop == null ? { ...row, value: clientPinValue(Number(row.pin), row.value, licensed) } : licensed ? row : { ...row, value: "" },
+  );
 }
 
 export function createWebRouter(): Router {
@@ -827,6 +831,22 @@ export function createWebRouter(): Router {
       setSetting(key, String(body[key]));
     }
     res.json({ ok: true });
+  });
+
+  router.get("/settings/backup", authMiddleware, adminMiddleware, (req, res) => {
+    const { user } = req as AuthedRequest;
+    res.json(buildBackup(user.id));
+  });
+
+  router.post("/settings/restore", authMiddleware, adminMiddleware, (req, res) => {
+    const { user } = req as AuthedRequest;
+    try {
+      const result = restoreBackup(user.id, req.body);
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Restore failed";
+      res.status(400).json({ error: message });
+    }
   });
 
   router.post("/settings/test-email", authMiddleware, adminMiddleware, async (req, res) => {

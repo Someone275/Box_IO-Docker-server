@@ -6,6 +6,7 @@ import { join } from "node:path";
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "boxio-status-"));
 
 const { db } = await import("../src/db.ts");
+const { clientPinValue } = await import("../src/status-pin.ts");
 const {
   DEVICE_STATUS_PIN,
   deviceStatusValue,
@@ -14,6 +15,11 @@ const {
   sweepDevicePresence,
   writePin,
 } = await import("../src/device.ts");
+
+assert.equal(clientPinValue(100, "1", false), "1");
+assert.equal(clientPinValue(100, "", false), "0");
+assert.equal(clientPinValue(1, "1", false), "");
+assert.equal(clientPinValue(1, "1", true), "1");
 
 assert.equal(DEVICE_STATUS_PIN, 100);
 

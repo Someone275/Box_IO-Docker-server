@@ -13,6 +13,9 @@ export function SettingsPage() {
   const [error, setError] = useState("");
   const [testTo, setTestTo] = useState("");
   const [smsTo, setSmsTo] = useState("");
+  const [backupFile, setBackupFile] = useState<File | null>(null);
+  const [backupPick, setBackupPick] = useState(0);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     api
@@ -20,6 +23,59 @@ export function SettingsPage() {
       .then((d) => setSettings(d.settings))
       .catch((err) => setError(err.message));
   }, []);
+
+  async function downloadBackup() {
+    setBusy(true);
+    try {
+      const data = await api.get<Record<string, unknown>>("/api/settings/backup");
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const day = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `boxio-backup-${day}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setMessage("Backup downloaded");
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Backup failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restoreBackup() {
+    if (!backupFile) return;
+    if (
+      !confirm(
+        "Replace this account's projects and device keys, and this server's mail and domain settings, with the backup?",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const text = await backupFile.text();
+      let body: unknown;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        throw new Error("That file is not a Box IO backup");
+      }
+      const result = await api.post<{ keys: number; projects: number }>("/api/settings/restore", body);
+      const fresh = await api.get<{ settings: Settings }>("/api/settings");
+      setSettings(fresh.settings);
+      setBackupFile(null);
+      setBackupPick((n) => n + 1);
+      setMessage(`Restored ${result.keys} device keys and ${result.projects} projects`);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Restore failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function set(key: string, value: string) {
     setSettings((s) => ({ ...s, [key]: value }));
@@ -45,6 +101,34 @@ export function SettingsPage() {
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
       {message && <p className="text-sm text-accent">{message}</p>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Backup and restore</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted">
+            Download this account’s projects and device keys, plus the mail, SMS, and domain settings.
+            On a new server, sign in and restore the file here. Device key tokens stay the same, so the
+            hardware keeps its key. The file contains those tokens and the mail password. Keep it private.
+          </p>
+          <Button disabled={busy} onClick={() => void downloadBackup()}>
+            Download backup
+          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              key={backupPick}
+              type="file"
+              accept="application/json,.json"
+              className="h-auto py-2"
+              onChange={(e) => setBackupFile(e.target.files?.[0] ?? null)}
+            />
+            <Button variant="secondary" disabled={busy || !backupFile} onClick={() => void restoreBackup()}>
+              Restore backup
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -118,6 +118,11 @@ export function ProjectBoardPage() {
         setProjects(list.projects);
         setLayout(parseLayout(p.project.layout_json));
         await loadPins();
+        setValues((current) => {
+          const next = { ...current };
+          for (const key of k.keys) next[pinKey(key.id, 100)] = key.online ? "1" : "0";
+          return next;
+        });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Load failed");
       }
@@ -197,6 +202,11 @@ export function ProjectBoardPage() {
         const msg = JSON.parse(ev.data);
         if (msg.type === "project" && String(msg.projectId) === id && msg.project) {
           applyRemoteRef.current(msg.project as Project);
+          return;
+        }
+        if (msg.type === "device") {
+          const key = pinKey(Number(msg.deviceKeyId), 100);
+          setValues((v) => ({ ...v, [key]: msg.online ? "1" : "0" }));
           return;
         }
         if (msg.type !== "pin") return;
@@ -418,7 +428,7 @@ export function ProjectBoardPage() {
   const boardEditing = editing && !viewing;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 [overflow-anchor:none]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
           {viewing ? (
@@ -476,8 +486,9 @@ export function ProjectBoardPage() {
           )}
         </div>
       </div>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {saved && <p className="text-sm text-accent">{saved}</p>}
+      <p className="h-5 text-sm">
+        {error ? <span className="text-danger">{error}</span> : saved ? <span className="text-accent">{saved}</span> : "\u00a0"}
+      </p>
 
       <div className="flex flex-wrap items-center gap-2">
         {layout.pages.map((p) => (
@@ -655,7 +666,7 @@ export function ProjectBoardPage() {
         </div>
       )}
 
-      <div className={boardEditing ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" : ""}>
+      <div className={boardEditing ? "grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_320px]" : ""}>
         <div className="min-w-0 overflow-auto rounded-2xl bg-[#070d18] p-3">
           <Canvas
             projectId={id}
@@ -678,7 +689,21 @@ export function ProjectBoardPage() {
           />
         </div>
         {boardEditing && (
-          <div className="space-y-4 xl:max-h-[calc(100svh-8rem)] xl:overflow-auto">
+          <div
+            className={
+              selected
+                ? "space-y-4 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-40 max-md:max-h-[min(55svh,520px)] max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-t-2xl max-md:border max-md:border-line max-md:bg-panel max-md:p-3 max-md:pb-8 max-md:shadow-2xl md:max-h-[calc(100svh-8rem)] md:overflow-y-auto"
+                : "hidden space-y-4 md:block md:max-h-[calc(100svh-8rem)] md:overflow-y-auto"
+            }
+          >
+            {selected && (
+              <div className="flex items-center justify-between md:hidden">
+                <div className="text-sm font-semibold">Widget properties</div>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setSelectedId(null)}>
+                  Done
+                </Button>
+              </div>
+            )}
             <Card className="hidden md:block">
               <CardHeader>
                 <CardTitle>Add widget</CardTitle>
@@ -1151,7 +1176,7 @@ export function ProjectBoardPage() {
           </div>
         )}
       </div>
-      {boardEditing && (
+      {boardEditing && !selected && (
         <button
           type="button"
           className="fixed bottom-4 left-4 z-30 flex items-center gap-2 rounded-full bg-accent px-4 py-3 text-sm font-semibold text-[#071018] shadow-lg md:hidden"

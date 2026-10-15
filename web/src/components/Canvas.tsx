@@ -49,26 +49,34 @@ export function Canvas({
   const [space, setSpace] = useState<{ w: number; h: number } | null>(null);
   const contentRows = widgets.reduce((m, w) => Math.max(m, w.y + w.h), 0);
   const gridRows = Math.max(rows, contentRows + (editing ? 1 : 0));
-  const boardW = columns * snap;
+  const screenW = columns * snap;
+  const screenH = rows * snap;
+  const boardW = screenW;
   const boardH = gridRows * snap;
   const labelBlock = showFrameLabel ? 28 : 0;
 
   useEffect(() => {
     const el = hostRef.current;
     if (!el) return;
-    const measure = () => setSpace({ w: el.clientWidth, h: el.clientHeight });
+    const measure = () => {
+      const next = { w: el.clientWidth, h: el.clientHeight };
+      setSpace((prev) =>
+        prev && Math.abs(prev.w - next.w) < 2 && Math.abs(prev.h - next.h) < 2 ? prev : next,
+      );
+    };
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     measure();
     return () => observer.disconnect();
   }, []);
 
-  const availW = space?.w ?? boardW;
-  const availH = Math.max(1, (space?.h ?? boardH + labelBlock) - labelBlock);
+  const availW = space?.w ?? screenW;
+  const availH = Math.max(1, (space?.h ?? screenH + labelBlock) - labelBlock);
   const scale =
-    boardW > 0 && boardH > 0 ? Math.min(availW / boardW, availH / boardH) : 1;
-  const fittedW = boardW * (Number.isFinite(scale) && scale > 0 ? scale : 1);
-  const fittedH = boardH * (Number.isFinite(scale) && scale > 0 ? scale : 1);
+    screenW > 0 && screenH > 0 ? Math.min(availW / screenW, availH / screenH) : 1;
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const fittedW = boardW * safeScale;
+  const fittedH = boardH * safeScale;
   const cell = columns > 0 ? fittedW / columns : snap;
 
   function startDrag(e: ReactPointerEvent, id: string, mode: "move" | "resize") {
@@ -131,7 +139,11 @@ export function Canvas({
   }
 
   return (
-    <div ref={hostRef} className="flex h-[min(46svh,520px)] w-full flex-col items-center justify-center overflow-hidden md:h-[min(70vh,900px)]">
+    <div
+      ref={hostRef}
+      className="flex h-[min(46svh,520px)] w-full flex-col items-center overflow-auto overscroll-contain md:h-[min(70svh,900px)]"
+      style={{ justifyContent: editing ? "flex-start" : "center" }}
+    >
       {showFrameLabel && (
         <div data-testid="screen-frame-label" className="mb-1 h-7 text-center text-xs text-muted">
           {frameLabel}
