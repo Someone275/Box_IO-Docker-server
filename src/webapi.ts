@@ -31,7 +31,7 @@ import {
 } from "./viewers.js";
 import type { ProjectLayout } from "./types.js";
 import { referencedDeviceKeyIds } from "./layout.js";
-import { clampHistoryRange, currentReadingPoint, findGraphWidget, graphSeriesOf, readPinHistory, sampleIntervalSeconds, storedPinValue, withCurrentReading } from "./history.js";
+import { clampHistoryRange, findGraphWidget, graphSeriesOf, liveGraphSeries, readPinHistory, sampleIntervalSeconds, storedPinValue } from "./history.js";
 import { licenseAllowsData } from "./license.js";
 import { mountLicenseRoutes } from "./license-api.js";
 import { emitToUser } from "./broadcast.js";
@@ -710,16 +710,20 @@ export function createWebRouter(): Router {
     const range = clampHistoryRange(Number(req.query.from), Number(req.query.to), nowSec);
     const interval = sampleIntervalSeconds(widget.props?.sampleEvery);
     const showData = licenseAllowsData();
-    const series = graphSeriesOf(widget).map((item) => ({
+    const rows = graphSeriesOf(widget).map((item) => ({
       pin: item.pin,
       label: item.label,
       color: item.color,
-      points: showData
-        ? withCurrentReading(
-            readPinHistory(keyId, item.pin, interval, range.from, range.to),
-            currentReadingPoint(storedPinValue(keyId, item.pin), range.from, range.to, nowSec),
-          )
-        : [],
+      points: showData ? readPinHistory(keyId, item.pin, interval, range.from, range.to) : [],
+    }));
+    const plotted = showData
+      ? liveGraphSeries(rows, (pin) => storedPinValue(keyId, pin), range.from, range.to, nowSec)
+      : rows.map(() => [] as { t: number; v: number }[]);
+    const series = rows.map((item, index) => ({
+      pin: item.pin,
+      label: item.label,
+      color: item.color,
+      points: plotted[index],
     }));
     res.json({ from: range.from, to: range.to, sampleEvery: widget.props?.sampleEvery || "minute", series });
   });

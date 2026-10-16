@@ -10,6 +10,7 @@ import {
   readPinHistory,
   fanoutOffsets,
   graphableNumber,
+  liveGraphSeries,
   recordPinHistory,
   retentionSeconds,
   sampleIntervalSeconds,
@@ -110,6 +111,34 @@ const listed = db.prepare("SELECT value FROM pin_history WHERE pin = 1 AND bucke
   value: number;
 };
 assert(listed.value === 236, "a list is stored as its first number");
+const liveLines = liveGraphSeries(
+  [
+    { pin: 1, points: [{ t: (nowSec - 30) * 1000, v: 0 }] },
+    { pin: 2, points: [{ t: (nowSec - 30) * 1000, v: -0.5 }] },
+    { pin: 3, points: [{ t: (nowSec - 30) * 1000, v: 3 }] },
+    { pin: 4, points: [{ t: (nowSec - 30) * 1000, v: 0 }] },
+  ],
+  (pin) => (pin === 1 ? "236,264,265,263" : "0"),
+  nowSec - 3600,
+  nowSec,
+  nowSec,
+);
+assert(
+  liveLines.map((points) => points[0]?.v).join(",") === "236,264,265,263",
+  "the history response follows the list on V1",
+);
+assert(
+  liveLines.every((points) => points.length === 2 && points[0].v === points[1].v),
+  "the history response draws a line at each current number",
+);
+const pastLines = liveGraphSeries(
+  [{ pin: 1, points: [{ t: (nowSec - 4000) * 1000, v: 0 }] }],
+  () => "236,264,265,263",
+  nowSec - 86400,
+  nowSec - 3600,
+  nowSec,
+);
+assert(pastLines[0].length === 1 && pastLines[0][0].v === 0, "a past window keeps the stored samples");
 db.prepare("INSERT INTO projects (user_id, name, device_key_id, layout_json) VALUES (?, 'Grid', ?, ?)").run(
   userId,
   deviceId,

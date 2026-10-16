@@ -287,6 +287,43 @@ export function withCurrentReading(
   return [...kept, point];
 }
 
+/**
+ * Points the graph should draw. A live window whose first pin holds a numeric
+ * list draws each following pin at that field, so V1..V4 follow 236,264,265,263
+ * even when older samples are still stored.
+ */
+export function liveGraphSeries(
+  series: { pin: number; points: { t: number; v: number }[] }[],
+  valueForPin: (pin: number) => string | undefined,
+  fromSec: number,
+  toSec: number,
+  nowSec: number,
+): { t: number; v: number }[][] {
+  const live = toSec >= nowSec - 2;
+  const pins = series.map((item) => item.pin);
+  if (live && pins.length) {
+    const ordered = [...pins].sort((a, b) => a - b);
+    const base = ordered[0];
+    const consecutive = ordered.every((pin, index) => pin === base + index);
+    const list = numericList(valueForPin(base));
+    const end = Math.min(Math.floor(toSec), Math.floor(nowSec));
+    const start = Math.floor(fromSec);
+    if (consecutive && list && list.length >= ordered.length && end > start) {
+      return series.map((item) => {
+        const value = Number(list[item.pin - base]);
+        if (!Number.isFinite(value)) return [];
+        return [
+          { t: start * 1000, v: value },
+          { t: end * 1000, v: value },
+        ];
+      });
+    }
+  }
+  return series.map((item) =>
+    withCurrentReading(item.points, currentReadingPoint(valueForPin(item.pin), fromSec, toSec, nowSec)),
+  );
+}
+
 export function findGraphWidget(layoutJson: string, widgetId: string): SavedGraph | null {
   return widgetsFromLayout(layoutJson).find((widget) => widget?.id === widgetId && widget.type === "graph") || null;
 }
