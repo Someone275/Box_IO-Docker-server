@@ -8,7 +8,7 @@ name: boxio-blueonyx
 services:
   boxio:
     image: ${BOXIO_IMAGE:-someone275/box_io-docker-server:latest}
-    pull_policy: missing
+    pull_policy: always
     build: .
     restart: unless-stopped
     env_file:
@@ -22,8 +22,6 @@ services:
     volumes:
       - boxio-data:/data
       - ./keep-up.sh:/keep-up.sh:ro,z
-      # Pulled server code, including the graph history, runs without a new image.
-      - ./src:/app/src:ro,z
     command: ["/bin/sh", "/keep-up.sh"]
     ports:
       - "127.0.0.1:3847:3847"

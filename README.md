@@ -197,7 +197,7 @@ docker compose ps
 docker compose logs -f --tail=50
 ```
 
-`docker compose pull` downloads `someone275/box_io-docker-server` from Docker Hub. `docker compose up` does not build it again.
+`docker compose pull` downloads `someone275/box_io-docker-server` from Docker Hub. The compose file sets `pull_policy: always`, so a pull replaces an image that is already on the machine. `docker compose up` does not build it again.
 
 `boxio` and `nginx` should both say Up. Ctrl+C stops following the log. It does not stop the containers. They restart with the machine because the compose file uses `unless-stopped`.
 
@@ -258,11 +258,11 @@ https://boxio.example.com/public/bx_your_device_key/V0
 ```bash
 cd ~/Box_IO-Docker-server
 docker compose pull
-docker compose up -d --no-build
+docker compose up -d --no-build --force-recreate
 docker compose ps
 ```
 
-`docker compose pull` updates the image from Docker Hub. The volume stays. `docker compose restart` restarts the containers. `docker compose down` stops them without deleting the volume.
+`docker compose pull` updates the image from Docker Hub. `pull_policy: always` makes that pull replace the image already on the machine. `docker compose restart` restarts the old container and does not load a new image. The volume stays. `docker compose down` stops them without deleting the volume.
 
 Nginx has its own network and proxies to the app at `boxio:3847`. `keep-up.sh` restarts the app when it stops answering, and the proxy stays up. After this compose file changes, recreate both containers:
 
@@ -356,7 +356,7 @@ The sketch host is the server’s address and the port is `5923`. Example: `http
 ```bash
 cd /root/Box_IO-Docker-server
 docker compose -f docker-compose.blueonyx.yml pull
-docker compose -f docker-compose.blueonyx.yml up -d --no-build
+docker compose -f docker-compose.blueonyx.yml up -d --no-build --force-recreate
 sh blueonyx/install-proxy.sh boxio.example.com
 ```
 
@@ -370,4 +370,4 @@ Installs pull `someone275/box_io-docker-server:latest`. Compose uses that name u
 
 ## Build on the server instead
 
-`docker compose up --build -d` builds from this checkout. Use that when you are changing the server. A normal install runs `docker compose pull`, then `docker compose up -d --no-build`.
+`docker compose up --build -d` builds from this checkout. Use that when you are changing the server. A normal install runs `docker compose pull`, then `docker compose up -d --no-build --force-recreate`.

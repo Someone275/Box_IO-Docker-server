@@ -1,7 +1,8 @@
 # Ubuntu, CentOS Stream, and Red Hat Enterprise Linux.
-# The container runs ./src from this checkout, so a git pull is loaded by
-# recreating it: docker compose up -d
-# `docker compose up -d --build` rebuilds the web dashboard into the image.
+# The dashboard that is running is the Docker Hub image. git pull does not change it.
+# pull_policy is always so `docker compose pull` replaces an image already on the machine.
+# Build machine: git pull && sh push-dockerhub.sh
+# Server: docker compose pull && docker compose up -d --no-build --force-recreate
 # BlueOnyx uses docker-compose.blueonyx.yml so ports 80 and 443 stay with the panel.
 
 name: boxio
@@ -9,7 +10,7 @@ name: boxio
 services:
   boxio:
     image: ${BOXIO_IMAGE:-someone275/box_io-docker-server:latest}
-    pull_policy: missing
+    pull_policy: always
     build: .
     restart: unless-stopped
     env_file:
@@ -24,8 +25,6 @@ services:
       - boxio-data:/data
       # Host copy wins so an old image still restarts itself after this file is updated.
       - ./keep-up.sh:/keep-up.sh:ro,z
-      # Pulled server code, including the graph history, runs without a new image.
-      - ./src:/app/src:ro,z
     command: ["/bin/sh", "/keep-up.sh"]
     ports:
       - "5923:5923"
