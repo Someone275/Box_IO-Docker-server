@@ -213,6 +213,59 @@ export function formatGraphTime(ms: number, spanMs: number): string {
   return day;
 }
 
+/** A comma-separated list of numbers written to one pin. */
+export function numericList(value: string | undefined): string[] | null {
+  if (!value || !value.includes(",")) return null;
+  const parts = value.split(",").map((part) => part.trim()).filter((part) => part !== "");
+  if (parts.length < 2 || parts.some((part) => !Number.isFinite(Number(part)))) return null;
+  return parts;
+}
+
+/**
+ * Readings for consecutive graph pins. A list on the first of those pins is
+ * the value of each pin, so V1,V2,V3,V4 follow 236,264,265,263.
+ */
+export function liveSeriesReadings(
+  pins: number[],
+  valueForPin: (pin: number) => string | undefined,
+): { readings: (string | undefined)[]; fromList: boolean } {
+  if (!pins.length) return { readings: [], fromList: false };
+  const ordered = [...pins].sort((a, b) => a - b);
+  const base = ordered[0];
+  const consecutive = ordered.every((pin, index) => pin === base + index);
+  const list = numericList(valueForPin(base));
+  if (consecutive && list && list.length >= ordered.length) {
+    return { readings: pins.map((pin) => list[pin - base]), fromList: true };
+  }
+  return {
+    readings: pins.map((pin) => {
+      const own = valueForPin(pin);
+      const ownList = numericList(own);
+      if (ownList) return ownList[0];
+      return own;
+    }),
+    fromList: false,
+  };
+}
+
+/** Draw the current list value across the live window so each pin is a visible line. */
+export function holdLiveReading(
+  value: string | undefined,
+  nowMs: number,
+  fromMs: number,
+  toMs: number,
+): GraphPoint[] {
+  if (value === undefined || value.trim() === "") return [];
+  const v = Number(value);
+  if (!Number.isFinite(v) || !(toMs > fromMs)) return [];
+  const end = Math.min(toMs, Math.max(fromMs, nowMs));
+  if (end <= fromMs) return [{ t: end, v }];
+  return [
+    { t: fromMs, v },
+    { t: end, v },
+  ];
+}
+
 /** Add the pin's current reading at the live window's end so the line reaches now. */
 export function appendLiveReading(
   points: GraphPoint[],
@@ -225,12 +278,12 @@ export function appendLiveReading(
   const v = Number(value);
   if (!Number.isFinite(v) || !(toMs > fromMs)) return points;
   const end = Math.min(toMs, Math.max(fromMs, nowMs));
-  const last = points[points.length - 1];
+  const kept = points.filter((item) => item.t <= end);
+  const last = kept[kept.length - 1];
   if (!last) return [{ t: end, v }];
-  if (last.t > end) return points;
-  if (Math.abs(last.t - end) < 1000 && last.v === v) return points;
-  if (last.t === end) return [...points.slice(0, -1), { t: end, v }];
-  return [...points, { t: end, v }];
+  if (Math.abs(last.t - end) < 1000 && last.v === v) return kept;
+  if (last.t === end) return [...kept.slice(0, -1), { t: end, v }];
+  return [...kept, { t: end, v }];
 }
 
 export function plotGraphSeries(
@@ -254,9 +307,15 @@ export function plotGraphSeries(
       ]
     : base;
   if (!live) return rows;
-  return rows.map((item) => ({
+  const { readings, fromList } = liveSeriesReadings(
+    rows.map((item) => item.pin),
+    valueForPin,
+  );
+  return rows.map((item, index) => ({
     ...item,
-    points: appendLiveReading(item.points, valueForPin(item.pin), nowMs, fromMs, toMs),
+    points: fromList
+      ? holdLiveReading(readings[index], nowMs, fromMs, toMs)
+      : appendLiveReading(item.points, readings[index], nowMs, fromMs, toMs),
   }));
 }
 

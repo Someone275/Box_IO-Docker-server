@@ -16,6 +16,9 @@ interface SavedGraph {
   deviceKeyId?: number;
   props?: {
     sampleEvery?: string;
+    rows?: number;
+    cols?: number;
+    pinPerCell?: boolean;
     graphSeries?: { pin?: number; color?: string; label?: string }[];
   };
 }
@@ -92,6 +95,69 @@ export function graphSeriesOf(widget: SavedGraph): { pin: number; color: string;
   });
 }
 
+const STATUS_PIN = 100;
+
+/** A comma-separated list of numbers, such as a grid virtualWrite. */
+export function numericList(value: string | undefined | null): string[] | null {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed.includes(",")) return null;
+  const parts = trimmed.split(",").map((part) => part.trim()).filter((part) => part !== "");
+  if (parts.length < 2 || parts.some((part) => !Number.isFinite(Number(part)))) return null;
+  return parts;
+}
+
+/** The number a graph can plot. A list uses its first value. */
+export function graphableNumber(value: string | undefined | null): number | null {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const direct = Number(trimmed);
+  if (Number.isFinite(direct)) return direct;
+  const list = numericList(trimmed);
+  if (!list) return null;
+  const first = Number(list[0]);
+  return Number.isFinite(first) ? first : null;
+}
+
+function gridSpan(widget: SavedGraph): number {
+  const rows = Math.min(16, Math.max(1, Math.round(Number(widget.props?.rows)) || 4));
+  const cols = Math.min(16, Math.max(1, Math.round(Number(widget.props?.cols)) || 4));
+  return rows * cols;
+}
+
+/**
+ * Offsets after the written pin that should receive the rest of a numeric list.
+ * A pin-per-cell grid on this pin, and a graph whose series continues from this pin.
+ */
+export function fanoutOffsets(userId: number, deviceKeyId: number, pin: number, count: number): number[] {
+  if (count < 2 || pin < 0) return [];
+  const projects = db
+    .prepare("SELECT device_key_id, layout_json FROM projects WHERE user_id = ?")
+    .all(userId) as { device_key_id: number | null; layout_json: string }[];
+  const offsets = new Set<number>();
+  for (const project of projects) {
+    for (const widget of widgetsFromLayout(project.layout_json)) {
+      const bound = Number(widget.deviceKeyId) || project.device_key_id;
+      if (bound !== deviceKeyId) continue;
+      if (widget.type === "grid" && widget.props?.pinPerCell === true && Number(widget.pin) === pin) {
+        const span = Math.min(count, gridSpan(widget));
+        for (let offset = 1; offset < span; offset++) offsets.add(offset);
+      }
+      if (widget.type === "graph" && seriesPins(widget).includes(pin)) {
+        for (const seriesPin of seriesPins(widget)) {
+          const offset = seriesPin - pin;
+          if (offset > 0 && offset < count) offsets.add(offset);
+        }
+      }
+    }
+  }
+  return [...offsets].filter((offset) => {
+    const next = pin + offset;
+    return next >= 0 && next <= 127 && next !== STATUS_PIN;
+  });
+}
+
 function intervalsForPin(userId: number, deviceKeyId: number, pin: number): number[] {
   const projects = db
     .prepare("SELECT device_key_id, layout_json FROM projects WHERE user_id = ?")
@@ -110,8 +176,8 @@ function intervalsForPin(userId: number, deviceKeyId: number, pin: number): numb
 }
 
 export function recordPinHistory(userId: number, deviceKeyId: number, pin: number, value: string, nowMs = Date.now()): void {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || pin < 0 || pin > 127) return;
+  const numeric = graphableNumber(value);
+  if (numeric === null || pin < 0 || pin > 127) return;
   const intervals = intervalsForPin(userId, deviceKeyId, pin);
   if (!intervals.length) return;
   const nowSec = Math.floor(nowMs / 1000);
@@ -203,9 +269,8 @@ export function currentReadingPoint(
   nowSec: number,
 ): { t: number; v: number } | null {
   if (toSec < nowSec - 2) return null;
-  if (value === undefined || value.trim() === "") return null;
-  const v = Number(value);
-  if (!Number.isFinite(v)) return null;
+  const v = graphableNumber(value);
+  if (v === null) return null;
   const stamp = Math.min(toSec, nowSec);
   if (stamp < fromSec) return null;
   return { t: stamp * 1000, v };
@@ -216,12 +281,10 @@ export function withCurrentReading(
   point: { t: number; v: number } | null,
 ): { t: number; v: number }[] {
   if (!point) return points;
-  const last = points[points.length - 1];
-  if (!last) return [point];
-  if (last.t > point.t) return points;
-  if (Math.abs(last.t - point.t) < 1000 && last.v === point.v) return points;
-  if (last.t === point.t) return [...points.slice(0, -1), point];
-  return [...points, point];
+  const kept = points.filter((item) => item.t < point.t);
+  const last = kept[kept.length - 1];
+  if (last && Math.abs(last.t - point.t) < 1000 && last.v === point.v) return kept;
+  return [...kept, point];
 }
 
 export function findGraphWidget(layoutJson: string, widgetId: string): SavedGraph | null {

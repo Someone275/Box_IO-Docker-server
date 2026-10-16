@@ -1,3 +1,4 @@
+import { numericList } from "../src/lib/graph.ts";
 import {
   cellColor,
   gridConfig,
@@ -24,6 +25,9 @@ const pins = gridDisplayCells(2, "ignored", true, (index) => (index === 0 ? "72"
 assert(pins.join("|") === "72|40", `pin per cell should read V2 and V3, got ${pins.join("|")}`);
 const csvCells = gridDisplayCells(4, "21,22,40,18", false);
 assert(csvCells.join("|") === "21|22|40|18", "csv still fills every cell");
+const followed = numericList("236,264,265,263");
+const pinCells = gridDisplayCells(4, "236,264,265,263", true, (index) => followed?.[index] ?? "");
+assert(pinCells.join("|") === "236|264|265|263", "pin cells follow a list written to the first pin");
 const wide = Array.from({ length: 96 }, (_, i) => String(1000 + i)).join(",");
 const wideCells = gridDisplayCells(8 * 12, wide, false);
 assert(

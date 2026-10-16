@@ -183,12 +183,16 @@ export function GraphWidget({
         showDataScale={widget.props.showDataScale === true}
       />
       <div className="flex flex-wrap gap-x-2 text-[10px] text-muted" onPointerDown={(event) => event.stopPropagation()}>
-        {series.map((item) => (
-          <span key={item.pin} className="inline-flex items-center gap-1">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: item.color }} />
-            {item.label}
-          </span>
-        ))}
+        {plotted.map((item) => {
+          const latest = item.points[item.points.length - 1];
+          return (
+            <span key={item.pin} className="inline-flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: item.color }} />
+              {item.label}
+              {latest ? ` ${formatGraphValue(latest.v)}` : ""}
+            </span>
+          );
+        })}
         {editing ? <span>{retentionText(sampleEvery)}</span> : null}
       </div>
       {error ? <p className="text-[11px] text-danger">{error}</p> : null}

@@ -3,7 +3,7 @@ import { db, markDeviceSeen, sweepOfflineDevices } from "./db.js";
 import { emitPinUpdate, emitDeviceStatus } from "./broadcast.js";
 import { sendEmail, sendSms } from "./notify.js";
 import { watchdogConfig } from "./watchdog.js";
-import { recordPinHistory } from "./history.js";
+import { fanoutOffsets, numericList, recordPinHistory } from "./history.js";
 import { licenseAllowsData } from "./license.js";
 import { clientPinValue, DEVICE_STATUS_PIN } from "./status-pin.js";
 
@@ -107,6 +107,12 @@ function writePin(device: DeviceRow, pin: number, value: string, fromHw: boolean
   }
   emitPinUpdate(device.user_id, device.id, pin, value, pinProperties(device.id, pin));
   recordPinHistory(device.user_id, device.id, pin, value);
+  const parts = numericList(value);
+  if (parts) {
+    for (const offset of fanoutOffsets(device.user_id, device.id, pin, parts.length)) {
+      writePin(device, pin + offset, parts[offset], fromHw, false);
+    }
+  }
   if (hooks) {
     void import("./webhook.js").then((mod) => mod.fireWebhooksForPin(device, pin, value));
   }

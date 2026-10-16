@@ -23,6 +23,7 @@ import {
 } from "@/lib/utils";
 import { pinKey } from "@/lib/layout";
 import type { BoardWidget, WidgetProps } from "@/lib/types";
+import { numericList } from "@/lib/graph";
 import { DpadWidget } from "./DpadWidget";
 import { GraphWidget } from "./GraphWidget";
 import { webhookContentType } from "@/lib/webhook";
@@ -687,9 +688,13 @@ function GridWidget({
   const { rows, cols, mode, colorOff, rules } = gridConfig(widget.props, properties);
   const count = rows * cols;
   const pinPerCell = widget.props.pinPerCell === true;
+  const list = numericList(values[pinKey(deviceKeyId, widget.pin)] ?? value);
   const cells = gridDisplayCells(count, value, pinPerCell, (index) => {
     const pin = widget.pin + index;
-    return values[pinKey(deviceKeyId, pin)] ?? (index === 0 ? value : "");
+    const own = values[pinKey(deviceKeyId, pin)];
+    if (list && index < list.length) return list[index];
+    if (own !== undefined && own !== "") return own;
+    return index === 0 ? value : "";
   });
   const signature = `${pinPerCell ? "pins" : "csv"}|${rows}|${cols}|${cells.join("\u0001")}`;
   const [draft, setDraft] = useState<string[] | null>(null);

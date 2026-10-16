@@ -1,4 +1,4 @@
-import { addGraphSeries, appendLiveReading, formatGraphTime, formatGraphValue, graphWindow, niceValueTicks, normalizeGraphSeries, plotGraphSeries, shiftGraphAnchor, timeTicks } from "../src/lib/graph.ts";
+import { addGraphSeries, appendLiveReading, formatGraphTime, formatGraphValue, graphWindow, holdLiveReading, liveSeriesReadings, niceValueTicks, normalizeGraphSeries, plotGraphSeries, shiftGraphAnchor, timeTicks } from "../src/lib/graph.ts";
 
 function assert(cond: unknown, message: string) {
   if (!cond) throw new Error(message);
@@ -74,5 +74,37 @@ const past = plotGraphSeries(
   fromMs + 1000,
 );
 assert(past[0].points.length === 1 && past[0].points[0].v === 10, "day view stays on the stored points");
+
+const listed = liveSeriesReadings([1, 2, 3, 4], (pin) => (pin === 1 ? "236,264,265,263" : pin === 2 ? "-0.5" : "0"));
+assert(listed.fromList && listed.readings.join(",") === "236,264,265,263", "a list on V1 is the value of V1 through V4");
+const listedPlot = plotGraphSeries(
+  [
+    { pin: 1, label: "V1", color: "#2ee0c5", points: [{ t: fromMs, v: 0 }] },
+    { pin: 2, label: "V2", color: "#f5b942", points: [{ t: fromMs, v: -0.5 }] },
+    { pin: 3, label: "V3", color: "#ff5d73", points: [{ t: fromMs, v: 3 }] },
+    { pin: 4, label: "V4", color: "#7aa2ff", points: [{ t: fromMs, v: 0 }] },
+  ],
+  [
+    { pin: 1, label: "V1", color: "#2ee0c5" },
+    { pin: 2, label: "V2", color: "#f5b942" },
+    { pin: 3, label: "V3", color: "#ff5d73" },
+    { pin: 4, label: "V4", color: "#7aa2ff" },
+  ],
+  true,
+  (pin) => (pin === 1 ? "236,264,265,263" : "0"),
+  nowMs,
+  fromMs,
+  nowMs,
+);
+assert(
+  listedPlot.every((item) => item.points.length === 2 && item.points[0].v === item.points[1].v),
+  "a list draws a line at the current number",
+);
+assert(
+  listedPlot.map((item) => item.points[0].v).join(",") === "236,264,265,263",
+  "the live graph follows the list instead of the old samples",
+);
+const held = holdLiveReading("264", nowMs, fromMs, nowMs);
+assert(held.length === 2 && held[0].v === 264 && held[1].t === nowMs, "the held line spans the live window");
 
 console.log("graph window ok");
