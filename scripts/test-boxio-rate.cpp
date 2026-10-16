@@ -3,7 +3,7 @@
 #include <string.h>
 
 uint32_t boxio_millis = 0;
-char boxio_paths[64][180];
+char boxio_paths[64][BOXIO_CAPTURE_PATH];
 int boxio_path_count = 0;
 int boxio_connects = 0;
 char boxio_last_host[80] = {0};
@@ -13,6 +13,9 @@ uint16_t boxio_off_port = 0;
 int boxio_off_connects = 0;
 char boxio_fail_host[80] = {0};
 const char* boxio_scripted_body = nullptr;
+int boxio_sticky = 0;
+int boxio_connect_timeout = 0;
+uint16_t boxio_fail_port = 0;
 int boxio_pin_mode[128];
 int boxio_pin_level[128];
 
@@ -221,6 +224,73 @@ int main() {
   expect(boxio_pin_level[7] == HIGH, "low-to-high finishes high after the transition");
   boxio_scripted_body = nullptr;
   boxio_fail_host[0] = 0;
+
+  boxio_sticky = 1;
+  boxio_scripted_body = "HTTP/1.0 200 OK\r\nContent-Length: 8\r\n\r\n{\"ok\":1}GARBAGE";
+  boxio_millis = 700000;
+  uint32_t timed = boxio_millis;
+  BoxIO.run();
+  expect(boxio_millis == timed, "content-length ends the read without waiting for disconnect");
+
+  boxio_scripted_body = "\r\n\r\n{\"ok\":1}";
+  boxio_millis = 800000;
+  timed = boxio_millis;
+  BoxIO.run();
+  expect(boxio_millis > timed && boxio_millis - timed < 5000, "an open socket is dropped after a short idle");
+  boxio_sticky = 0;
+  boxio_scripted_body = nullptr;
+
+  strncpy(boxio_fail_host, "127.0.0.1", sizeof(boxio_fail_host) - 1);
+  boxio_millis = 900000;
+  int before = boxio_connects;
+  BoxIO.run();
+  expect(boxio_connects == before + 2, "a failed ping tries port 80 and skips pull and watchdog");
+  boxio_millis = 900100;
+  int duringBackoff = boxio_connects;
+  BoxIO.run();
+  expect(boxio_connects == duringBackoff, "a failed server is left alone for a few seconds");
+  boxio_fail_host[0] = 0;
+
+  boxio_fail_port = 5923;
+  boxio_path_count = 0;
+  boxio_millis = 921000;
+  BoxIO.run();
+  expect(boxio_last_port == 80 && saw("/hw/ping"), "a closed device port is retried on port 80");
+  boxio_fail_port = 0;
+  boxio_millis = 941000;
+  boxio_path_count = 0;
+  BoxIO.run();
+  expect(boxio_last_port == 80 && saw("/hw/ping"), "port 80 stays in use after it answers");
+
+  struct TunedClient : Client {
+    void setConnectionTimeout(uint16_t ms) { boxio_connect_timeout = (int)ms; }
+  } tuned;
+  BoxIO.begin(tuned, "bx", "10.0.0.5", 5923);
+  expect(boxio_connect_timeout == 1500, "begin asks for a short connect timeout");
+
+  BoxIO.setMaxSendsPerSecond(0);
+  boxio_path_count = 0;
+  int cells[96];
+  for (int i = 0; i < 96; i++) cells[i] = 1000 + (i % 1000);
+  BoxIO.virtualWrite(5, cells, 96);
+  expect(boxio_path_count == 1, "a 96-cell grid is one write");
+  int commas = 0;
+  const char* gridPath = boxio_paths[0];
+  for (const char* p = gridPath; *p; p++) {
+    if (p[0] == '%' && p[1] == '2' && (p[2] == 'C' || p[2] == 'c')) commas++;
+  }
+  expect(commas == 95, "all 96 values are in the query");
+  expect(strstr(gridPath, "1000") != nullptr && strstr(gridPath, "1095") != nullptr, "the first and last cells are sent");
+
+  int wide[256];
+  for (int i = 0; i < 256; i++) wide[i] = 4000 + (i % 10);
+  boxio_path_count = 0;
+  BoxIO.virtualWrite(6, wide, 256);
+  commas = 0;
+  for (const char* p = boxio_paths[0]; *p; p++) {
+    if (p[0] == '%' && p[1] == '2' && (p[2] == 'C' || p[2] == 'c')) commas++;
+  }
+  expect(boxio_path_count == 1 && commas == 255, "a 16 by 16 grid is sent in full");
 
   if (fails) {
     printf("%d failed\n", fails);

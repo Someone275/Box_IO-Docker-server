@@ -75,6 +75,11 @@ export function listedWidgetLabel(type: string, label?: string) {
   return WIDGET_META[type as WidgetType]?.name || type;
 }
 
+/** Edit shows the pin and device beside the caption. Live shows the caption only. */
+export function showWidgetMeta(editing: boolean | undefined, showPin = true) {
+  return editing === true && showPin;
+}
+
 /** Caption above a round or oval button. The saved widget label is shown, not the pin property. */
 export function buttonCaption(
   props: { label?: string },

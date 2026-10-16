@@ -31,7 +31,7 @@ import {
 } from "./viewers.js";
 import type { ProjectLayout } from "./types.js";
 import { referencedDeviceKeyIds } from "./layout.js";
-import { clampHistoryRange, findGraphWidget, graphSeriesOf, readPinHistory, sampleIntervalSeconds } from "./history.js";
+import { clampHistoryRange, currentReadingPoint, findGraphWidget, graphSeriesOf, readPinHistory, sampleIntervalSeconds, storedPinValue, withCurrentReading } from "./history.js";
 import { licenseAllowsData } from "./license.js";
 import { mountLicenseRoutes } from "./license-api.js";
 import { emitToUser } from "./broadcast.js";
@@ -706,14 +706,20 @@ export function createWebRouter(): Router {
       res.status(400).json({ error: "Assign a device key to this graph or project first" });
       return;
     }
-    const range = clampHistoryRange(Number(req.query.from), Number(req.query.to));
+    const nowSec = Math.floor(Date.now() / 1000);
+    const range = clampHistoryRange(Number(req.query.from), Number(req.query.to), nowSec);
     const interval = sampleIntervalSeconds(widget.props?.sampleEvery);
     const showData = licenseAllowsData();
     const series = graphSeriesOf(widget).map((item) => ({
       pin: item.pin,
       label: item.label,
       color: item.color,
-      points: showData ? readPinHistory(keyId, item.pin, interval, range.from, range.to) : [],
+      points: showData
+        ? withCurrentReading(
+            readPinHistory(keyId, item.pin, interval, range.from, range.to),
+            currentReadingPoint(storedPinValue(keyId, item.pin), range.from, range.to, nowSec),
+          )
+        : [],
     }));
     res.json({ from: range.from, to: range.to, sampleEvery: widget.props?.sampleEvery || "minute", series });
   });

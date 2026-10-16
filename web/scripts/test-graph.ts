@@ -1,4 +1,4 @@
-import { addGraphSeries, formatGraphTime, formatGraphValue, graphWindow, niceValueTicks, normalizeGraphSeries, shiftGraphAnchor, timeTicks } from "../src/lib/graph.ts";
+import { addGraphSeries, appendLiveReading, formatGraphTime, formatGraphValue, graphWindow, niceValueTicks, normalizeGraphSeries, plotGraphSeries, shiftGraphAnchor, timeTicks } from "../src/lib/graph.ts";
 
 function assert(cond: unknown, message: string) {
   if (!cond) throw new Error(message);
@@ -40,5 +40,39 @@ const hourTicks = timeTicks(0, 3_600_000, 4);
 assert(hourTicks.length >= 2 && hourTicks.every((tick) => tick >= 0 && tick <= 3_600_000), "time ticks sit inside the hour");
 assert(formatGraphValue(72) === "72", "whole values stay whole");
 assert(formatGraphTime(Date.UTC(2026, 0, 1, 15, 30, 0), 3_600_000).includes(":"), "an hour window labels the clock");
+
+const fromMs = 1_700_000_000_000;
+const nowMs = fromMs + 3_600_000;
+const livePoint = appendLiveReading([], "72", nowMs, fromMs, nowMs);
+assert(livePoint.length === 1 && livePoint[0].v === 72 && livePoint[0].t === nowMs, "live mode draws the current reading when no bucket is stored yet");
+const extended = appendLiveReading([{ t: fromMs + 60_000, v: 10 }], "72", nowMs, fromMs, nowMs);
+assert(extended.length === 2 && extended[1].t === nowMs && extended[1].v === 72, "live mode keeps stored points and ends at the current reading");
+assert(appendLiveReading([{ t: nowMs, v: 72 }], "72", nowMs, fromMs, nowMs).length === 1, "the same current reading is not drawn twice");
+assert(appendLiveReading([], "hot", nowMs, fromMs, nowMs).length === 0, "text is not a graph point");
+
+const plotted = plotGraphSeries(
+  [{ pin: 4, label: "Temp", color: "#ff5d73", points: [{ t: fromMs + 60_000, v: 10 }] }],
+  [
+    { pin: 4, label: "Temp", color: "#ff5d73" },
+    { pin: 5, label: "Hum", color: "#7aa2ff" },
+  ],
+  true,
+  (pin) => (pin === 4 ? "11" : pin === 5 ? "40" : ""),
+  nowMs,
+  fromMs,
+  nowMs,
+);
+assert(plotted.length === 2 && plotted[0].points.length === 2 && plotted[0].points[1].v === 11, "a stored series is extended to now");
+assert(plotted[1].points.length === 1 && plotted[1].points[0].v === 40, "a pin with only a current value is still drawn");
+const past = plotGraphSeries(
+  [{ pin: 4, label: "Temp", color: "#ff5d73", points: [{ t: fromMs, v: 10 }] }],
+  [{ pin: 4, label: "Temp", color: "#ff5d73" }],
+  false,
+  () => "99",
+  nowMs,
+  fromMs,
+  fromMs + 1000,
+);
+assert(past[0].points.length === 1 && past[0].points[0].v === 10, "day view stays on the stored points");
 
 console.log("graph window ok");

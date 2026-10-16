@@ -3,7 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 
-extern char boxio_paths[64][180];
+#define BOXIO_CAPTURE_PATH 4600
+extern char boxio_paths[64][BOXIO_CAPTURE_PATH];
 extern int boxio_path_count;
 extern int boxio_connects;
 extern char boxio_last_host[80];
@@ -13,6 +14,9 @@ extern uint16_t boxio_off_port;
 extern int boxio_off_connects;
 extern char boxio_fail_host[80];
 extern const char* boxio_scripted_body;
+extern int boxio_sticky;
+extern int boxio_connect_timeout;
+extern uint16_t boxio_fail_port;
 
 class Client {
  public:
@@ -29,7 +33,8 @@ class Client {
         boxio_off_port = port;
       }
     }
-    if (host && boxio_fail_host[0] && strcmp(host, boxio_fail_host) == 0) {
+    if ((host && boxio_fail_host[0] && strcmp(host, boxio_fail_host) == 0) ||
+        (boxio_fail_port && port == boxio_fail_port)) {
       _body = "";
       _i = 0;
       _n = 0;
@@ -40,7 +45,8 @@ class Client {
     _i = 0;
     return true;
   }
-  bool connected() { return _i < _n; }
+  bool connected() { return boxio_sticky || _i < _n; }
+  void flush() {}
   void stop() { _i = _n; }
   int available() { return _i < _n ? 1 : 0; }
   int read() {
@@ -50,8 +56,8 @@ class Client {
   void print(const char* s) {
     if (!s || s[0] != '/') return;
     if (boxio_path_count >= 64) return;
-    strncpy(boxio_paths[boxio_path_count], s, 179);
-    boxio_paths[boxio_path_count][179] = 0;
+    strncpy(boxio_paths[boxio_path_count], s, BOXIO_CAPTURE_PATH - 1);
+    boxio_paths[boxio_path_count][BOXIO_CAPTURE_PATH - 1] = 0;
     boxio_path_count++;
   }
 

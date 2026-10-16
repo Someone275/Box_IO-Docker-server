@@ -10,7 +10,7 @@ typedef bool boolean;
 
 extern uint32_t boxio_millis;
 inline uint32_t millis() { return boxio_millis; }
-inline void delay(unsigned long) {}
+inline void delay(unsigned long ms) { boxio_millis += ms; }
 
 #define F(x) x
 #define HIGH 1

@@ -11,18 +11,23 @@ import {
   normalizeLiveSpan,
   normalizeSampleEvery,
   paddedValueRange,
+  plotGraphSeries,
   retentionText,
   shiftGraphAnchor,
   timeTicks,
   type GraphMode,
+  type GraphPoint,
   type LiveSpan,
 } from "@/lib/graph";
 import type { BoardWidget, WidgetProps } from "@/lib/types";
 import { pinKey } from "@/lib/layout";
 
-interface GraphPoint {
-  t: number;
-  v: number;
+function readingFor(values: Record<string, string>, deviceKeyId: number | null, pin: number): string | undefined {
+  const key = pinKey(deviceKeyId, pin);
+  if (Object.prototype.hasOwnProperty.call(values, key)) return values[key];
+  const suffix = `:${pin}`;
+  const matches = Object.entries(values).filter(([name, value]) => name.endsWith(suffix) && value !== "");
+  return matches.length === 1 ? matches[0][1] : undefined;
 }
 
 interface GraphResponse {
@@ -57,17 +62,17 @@ export function GraphWidget({
   const [time, setTime] = useState("00:00");
   const [data, setData] = useState<GraphResponse | null>(null);
   const [error, setError] = useState("");
-  const latest = series.map((item) => values[pinKey(deviceKeyId, item.pin)] ?? "").join("|");
+  const seriesKey = series.map((item) => `${item.pin}:${item.color}:${item.label}`).join("|");
 
   useEffect(() => {
     if (!projectId) return;
     let stop = false;
     const load = () => {
-      const window = graphWindow({ mode, liveSpan, date, time });
+      const span = graphWindow({ mode, liveSpan, date, time });
       const query = new URLSearchParams({
         widget: widget.id,
-        from: String(window.from),
-        to: String(window.to),
+        from: String(span.from),
+        to: String(span.to),
       });
       api
         .get<GraphResponse>(`/api/projects/${projectId}/history?${query}`)
@@ -90,11 +95,20 @@ export function GraphWidget({
       stop = true;
       window.clearInterval(timer);
     };
-  }, [projectId, widget.id, mode, liveSpan, date, time, latest, sampleEvery, series.length]);
+  }, [projectId, widget.id, mode, liveSpan, date, time, sampleEvery, seriesKey]);
 
-  const plotted = data?.series?.length ? data.series : series.map((item) => ({ ...item, points: [] as GraphPoint[] }));
-  const from = (data?.from ?? graphWindow({ mode, liveSpan, date, time }).from) * 1000;
-  const to = (data?.to ?? graphWindow({ mode, liveSpan, date, time }).to) * 1000;
+  const span = graphWindow({ mode, liveSpan, date, time });
+  const from = (data?.from ?? span.from) * 1000;
+  const to = mode === "live" ? Math.max((data?.to ?? span.to) * 1000, Date.now()) : (data?.to ?? span.to) * 1000;
+  const plotted = plotGraphSeries(
+    data?.series,
+    series,
+    mode === "live",
+    (pin) => readingFor(values, deviceKeyId, pin),
+    Date.now(),
+    from,
+    to,
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-1">

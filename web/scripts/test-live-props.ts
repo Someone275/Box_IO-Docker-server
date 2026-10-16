@@ -1,4 +1,4 @@
-import { addColorDivision, buttonCaption, buttonFace, gaugeArcPath, gaugePoint, gaugeSweep, liveMeterOpts, liveNum, liveStr, MAX_COLOR_DIVISIONS, meterColor, parseColorStopsCompact, removeColorDivision, sliderBounds, sliderPercent } from "../src/lib/utils.ts";
+import { addColorDivision, buttonCaption, buttonFace, gaugeArcPath, gaugePoint, gaugeSweep, liveMeterOpts, liveNum, liveStr, MAX_COLOR_DIVISIONS, meterColor, parseColorStopsCompact, removeColorDivision, showWidgetMeta, sliderBounds, sliderPercent } from "../src/lib/utils.ts";
 
 function assert(cond: unknown, message: string) {
   if (!cond) throw new Error(message);
@@ -18,6 +18,10 @@ assert(buttonCaption({ label: "Pump" }, { label: "Go" }) === "Pump", "widget lab
 assert(buttonCaption({ label: "Gate" }, { label: "Stop" }) === "Gate", "oval caption stays the widget label");
 assert(buttonCaption({ label: "Pump" }, {}) === "Pump", "saved label used when the sketch has not set one");
 assert(buttonCaption({ label: "  Round button  " }, { label: "Round" }) === "Round button", "caption trims the widget label");
+assert(showWidgetMeta(false, true) === false, "live hides the pin and device");
+assert(showWidgetMeta(true, true) === true, "edit shows the pin and device");
+assert(showWidgetMeta(true, false) === false, "a detached label stays off the pin");
+assert(showWidgetMeta(undefined, true) === false, "a viewer sees the label only");
 
 const h = sliderBounds({ min: 0, max: 100 }, { min: "5", max: "50" });
 assert(h.min === 5 && h.max === 50, "slider uses device min and max");

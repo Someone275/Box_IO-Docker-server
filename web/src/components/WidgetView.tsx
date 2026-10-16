@@ -19,6 +19,7 @@ import {
   sliderPercent,
   meterColor,
   pinLabel,
+  showWidgetMeta,
 } from "@/lib/utils";
 import { pinKey } from "@/lib/layout";
 import type { BoardWidget, WidgetProps } from "@/lib/types";
@@ -120,7 +121,7 @@ export function WidgetView({
     const on = isOn(value);
     const c = on ? colorOn : colorOff;
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
         <div className="widget-scale flex min-h-0 flex-1 items-center justify-center">
           <div
             className="aspect-square rounded-full border-4"
@@ -145,7 +146,7 @@ export function WidgetView({
     const sweep = gaugeSweep(start, meter.endDeg);
     const fillSweep = sweep * (pct / 100);
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
         <div className="widget-scale flex min-h-0 flex-1 items-center justify-center">
           <div className="relative" style={{ width: "100cqmin", height: "100cqmin" }}>
             <svg viewBox="0 0 100 100" className="h-full w-full">
@@ -168,7 +169,7 @@ export function WidgetView({
   if (widget.type === "bar_meter") {
     const { color: c, pct } = meterColor(n, meter);
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
         <div className="widget-scale flex min-h-0 flex-1 items-stretch justify-center gap-[6%]">
           <div className="relative h-full overflow-hidden rounded-full border border-line bg-[#0b1220]" style={{ width: "22%" }}>
             <div
@@ -188,7 +189,7 @@ export function WidgetView({
 
   if (widget.type === "value") {
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
         <div
           className="widget-scale flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-line bg-bg px-2 font-mono"
           style={{ color }}
@@ -207,7 +208,7 @@ export function WidgetView({
         ? value
         : liveStr(properties, "text", p.text || p.label) || "Label";
     return (
-      <Shell label={label} pin={widget.pin} deviceName={detached ? undefined : deviceName} hideLabel={hideCaption} showPin={!detached} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={detached ? undefined : deviceName} hideLabel={hideCaption} showPin={!detached} editing={editing} pad={pad}>
         <div className="widget-scale flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           <span
             className={`max-h-full w-full break-words text-center ${fontSize ? "" : "widget-fit-text"}`}
@@ -227,6 +228,7 @@ export function WidgetView({
         pin={widget.pin}
         deviceName={deviceName}
         hideLabel={hideCaption}
+        editing={editing}
         pad={pad}
         fontSize={fontSize}
         colorOn={colorOn}
@@ -251,7 +253,7 @@ export function WidgetView({
       : liveStr(properties, "textColorOff", p.textColorOff || "#e8eef8") || "#e8eef8";
     const round = widget.type === "button_round";
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
         <div className="widget-scale flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           <button
             type="button"
@@ -278,7 +280,7 @@ export function WidgetView({
 
   if (widget.type === "slider_h" || widget.type === "slider_v") {
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
         <FillSlider
           vertical={widget.type === "slider_v"}
           {...sliderBounds(p, properties)}
@@ -299,7 +301,7 @@ export function WidgetView({
     const target = p.url || "No URL yet";
     const hidden = !!p.hideInLive;
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
         <div className="flex min-h-0 flex-1 flex-col justify-center gap-1 overflow-hidden">
           <div className="flex items-center gap-2">
             <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[10px] text-accent">{method}</span>
@@ -334,7 +336,7 @@ export function WidgetView({
     const direction = p.direction === "low-to-high" ? "low to high" : "high to low";
     const status = liveStr(properties, "watchdogStatus", "Waiting for the board");
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad} pinText={`GPIO ${widget.pin}`}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad} pinText={`GPIO ${widget.pin}`}>
         <div className="flex min-h-0 flex-1 flex-col justify-center gap-1 overflow-hidden">
           <div className="truncate font-mono text-sm text-ink" style={textStyle(fontSize, "0.95rem")}>
             {target}
@@ -352,7 +354,7 @@ export function WidgetView({
 
   if (widget.type === "graph") {
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad} pinText={graphPins(widget)}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad} pinText={graphPins(widget)}>
         <GraphWidget
           projectId={projectId}
           widget={widget}
@@ -384,7 +386,7 @@ export function WidgetView({
   }
 
   return (
-    <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} pad={pad}>
+    <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad}>
       <div className="flex flex-1 items-center justify-center text-sm text-muted">Unsupported widget</div>
     </Shell>
   );
@@ -415,6 +417,7 @@ function Shell({
   deviceName,
   hideLabel,
   showPin = true,
+  editing,
   pinText,
   pad,
   children,
@@ -424,16 +427,18 @@ function Shell({
   deviceName?: string;
   hideLabel?: boolean;
   showPin?: boolean;
+  editing?: boolean;
   pinText?: string;
   pad: number;
   children: ReactNode;
 }) {
+  const meta = showWidgetMeta(editing, showPin);
   return (
     <div className="flex h-full min-h-0 flex-col" style={{ padding: pad, gap: Math.max(2, Math.round(pad / 2)) }}>
       {!hideLabel && (
         <div className="flex shrink-0 items-center justify-between gap-2 text-[11px] text-muted">
           <span className="truncate">{label}</span>
-          {showPin && (
+          {meta && (
             <span className="shrink-0 font-mono text-accent/80">
               {pinText || pinLabel(pin)}
               {deviceName ? ` · ${deviceName}` : ""}
@@ -599,6 +604,7 @@ function InputWidget({
   pin,
   deviceName,
   hideLabel,
+  editing,
   pad,
   fontSize,
   colorOn,
@@ -610,6 +616,7 @@ function InputWidget({
   pin: number;
   deviceName?: string;
   hideLabel?: boolean;
+  editing?: boolean;
   pad: number;
   fontSize?: number;
   colorOn: string;
@@ -619,7 +626,7 @@ function InputWidget({
 }) {
   const [text, setText] = useState("");
   return (
-    <Shell label={label} pin={pin} deviceName={deviceName} hideLabel={hideLabel} pad={pad}>
+    <Shell label={label} pin={pin} deviceName={deviceName} hideLabel={hideLabel} editing={editing} pad={pad}>
       <div className="flex min-h-0 flex-1 items-center gap-2">
         <input
           value={text}
@@ -708,7 +715,7 @@ function GridWidget({
   const rowsOf = Array.from({ length: rows }, (_, row) => shown.slice(row * cols, row * cols + cols));
 
   return (
-    <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideLabel} pad={pad}>
+    <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideLabel} editing={editing} pad={pad}>
       <div className="flex h-full min-h-0 w-full flex-1 flex-col gap-1">
         {rowsOf.map((rowCells, row) => (
           <div key={row} className="flex min-h-0 flex-1 gap-1">

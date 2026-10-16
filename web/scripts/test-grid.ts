@@ -24,6 +24,12 @@ const pins = gridDisplayCells(2, "ignored", true, (index) => (index === 0 ? "72"
 assert(pins.join("|") === "72|40", `pin per cell should read V2 and V3, got ${pins.join("|")}`);
 const csvCells = gridDisplayCells(4, "21,22,40,18", false);
 assert(csvCells.join("|") === "21|22|40|18", "csv still fills every cell");
+const wide = Array.from({ length: 96 }, (_, i) => String(1000 + i)).join(",");
+const wideCells = gridDisplayCells(8 * 12, wide, false);
+assert(
+  wideCells.length === 96 && wideCells[0] === "1000" && wideCells[95] === "1095",
+  "an 8 by 12 list fills every cell",
+);
 
 const rules = parseColorRulesCompact("0-25:#2ee0c5:all;35-100:#ff5d73:0,1");
 assert(rules.length === 2, `expected 2 rules, got ${rules.length}`);

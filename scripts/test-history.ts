@@ -5,10 +5,12 @@ db.exec("DELETE FROM pin_history; DELETE FROM projects; DELETE FROM device_keys;
 import {
   alignBucket,
   clampHistoryRange,
+  currentReadingPoint,
   readPinHistory,
   recordPinHistory,
   retentionSeconds,
   sampleIntervalSeconds,
+  withCurrentReading,
 } from "../src/history.js";
 
 function assert(cond: unknown, message: string) {
@@ -84,6 +86,21 @@ const left = db
   .prepare("SELECT bucket FROM pin_history WHERE pin = 1 AND bucket < ?")
   .all(start - retentionSeconds(60)) as { bucket: number }[];
 assert(left.length === 0, "readings older than the retention window are removed");
+
+db.prepare(
+  "INSERT INTO pin_history (device_key_id, pin, interval_sec, bucket, value) VALUES (?, ?, ?, ?, ?)",
+).run(deviceId, 7, 60, start, 42);
+const fallback = readPinHistory(deviceId, 7, 3600, start, start + 120);
+assert(fallback.length === 1 && fallback[0].v === 42, `stored readings are loaded when they were kept at another rate, got ${fallback.length}`);
+
+const nowSec = 1_800_000_000;
+const point = currentReadingPoint("18", nowSec - 3600, nowSec, nowSec);
+assert(point !== null && point.v === 18 && point.t === nowSec * 1000, "a live window includes the value the pin holds now");
+assert(currentReadingPoint("18", nowSec - 86400, nowSec - 3600, nowSec) === null, "a past window does not add the current value");
+assert(currentReadingPoint("hot", nowSec - 60, nowSec, nowSec) === null, "text is not a graph point");
+const line = withCurrentReading([{ t: (nowSec - 30) * 1000, v: 10 }], point);
+assert(line.length === 2 && line[1].v === 18, "the current value is the last point");
+assert(withCurrentReading([{ t: nowSec * 1000, v: 18 }], point).length === 1, "the same current reading is not duplicated");
 
 console.log("pin history ok");
 const dir = process.env.DATA_DIR || "";

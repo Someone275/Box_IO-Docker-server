@@ -29,6 +29,11 @@ export interface GraphSeries {
   label: string;
 }
 
+export interface GraphPoint {
+  t: number;
+  v: number;
+}
+
 export const LIVE_SPANS: { id: LiveSpan; label: string; seconds: number }[] = [
   { id: "minute", label: "1 minute", seconds: 60 },
   { id: "15m", label: "15 minutes", seconds: 15 * 60 },
@@ -206,6 +211,53 @@ export function formatGraphTime(ms: number, spanMs: number): string {
   const day = `${date.getMonth() + 1}/${date.getDate()}`;
   if (spanMs <= 14 * 24 * 60 * 60 * 1000) return `${day} ${hh}:${mm}`;
   return day;
+}
+
+/** Add the pin's current reading at the live window's end so the line reaches now. */
+export function appendLiveReading(
+  points: GraphPoint[],
+  value: string | undefined,
+  nowMs: number,
+  fromMs: number,
+  toMs: number,
+): GraphPoint[] {
+  if (value === undefined || value.trim() === "") return points;
+  const v = Number(value);
+  if (!Number.isFinite(v) || !(toMs > fromMs)) return points;
+  const end = Math.min(toMs, Math.max(fromMs, nowMs));
+  const last = points[points.length - 1];
+  if (!last) return [{ t: end, v }];
+  if (last.t > end) return points;
+  if (Math.abs(last.t - end) < 1000 && last.v === v) return points;
+  if (last.t === end) return [...points.slice(0, -1), { t: end, v }];
+  return [...points, { t: end, v }];
+}
+
+export function plotGraphSeries(
+  stored: { pin: number; label: string; color: string; points: GraphPoint[] }[] | null | undefined,
+  client: { pin: number; label: string; color: string }[],
+  live: boolean,
+  valueForPin: (pin: number) => string | undefined,
+  nowMs: number,
+  fromMs: number,
+  toMs: number,
+): { pin: number; label: string; color: string; points: GraphPoint[] }[] {
+  const base = stored && stored.length
+    ? stored
+    : client.map((item) => ({ ...item, points: [] as GraphPoint[] }));
+  const rows = live
+    ? [
+        ...base,
+        ...client
+          .filter((item) => !base.some((entry) => entry.pin === item.pin))
+          .map((item) => ({ ...item, points: [] as GraphPoint[] })),
+      ]
+    : base;
+  if (!live) return rows;
+  return rows.map((item) => ({
+    ...item,
+    points: appendLiveReading(item.points, valueForPin(item.pin), nowMs, fromMs, toMs),
+  }));
 }
 
 export function shiftGraphAnchor(date: string, time: string, mode: GraphMode, direction: -1 | 1): { date: string; time: string } {

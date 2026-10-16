@@ -133,17 +133,14 @@ export function recordPinHistory(userId: number, deviceKeyId: number, pin: numbe
   }
 }
 
-export function readPinHistory(
+function readInterval(
   deviceKeyId: number,
   pin: number,
   intervalSec: number,
-  fromSec: number,
-  toSec: number,
-  maxPoints = MAX_GRAPH_POINTS,
+  from: number,
+  to: number,
+  maxPoints: number,
 ): { t: number; v: number }[] {
-  const from = Math.floor(fromSec);
-  const to = Math.floor(toSec);
-  if (to <= from) return [];
   const group = Math.max(1, intervalSec, Math.ceil((to - from) / Math.max(1, maxPoints)));
   // One small index lookup per point. Grouping the whole retention window
   // in a single query holds the process until it finishes, and the dashboard
@@ -161,6 +158,70 @@ export function readPinHistory(
     if (row) points.push({ t: row.bucket * 1000, v: row.value });
   }
   return points;
+}
+
+export function readPinHistory(
+  deviceKeyId: number,
+  pin: number,
+  intervalSec: number,
+  fromSec: number,
+  toSec: number,
+  maxPoints = MAX_GRAPH_POINTS,
+): { t: number; v: number }[] {
+  const from = Math.floor(fromSec);
+  const to = Math.floor(toSec);
+  if (to <= from) return [];
+  const primary = readInterval(deviceKeyId, pin, intervalSec, from, to, maxPoints);
+  if (primary.length) return primary;
+  const others = db
+    .prepare(
+      `SELECT DISTINCT interval_sec AS interval_sec FROM pin_history
+       WHERE device_key_id = ? AND pin = ? AND bucket >= ? AND bucket < ?
+       ORDER BY interval_sec ASC`,
+    )
+    .all(deviceKeyId, pin, from, to) as { interval_sec: number }[];
+  for (const row of others) {
+    if (row.interval_sec === intervalSec) continue;
+    const alt = readInterval(deviceKeyId, pin, row.interval_sec, from, to, maxPoints);
+    if (alt.length) return alt;
+  }
+  return primary;
+}
+
+export function storedPinValue(deviceKeyId: number, pin: number): string | undefined {
+  const row = db
+    .prepare("SELECT value FROM pin_values WHERE device_key_id = ? AND pin = ?")
+    .get(deviceKeyId, pin) as { value: string } | undefined;
+  return row?.value;
+}
+
+/** The value the pin holds now, when the requested window reaches the present. */
+export function currentReadingPoint(
+  value: string | undefined,
+  fromSec: number,
+  toSec: number,
+  nowSec: number,
+): { t: number; v: number } | null {
+  if (toSec < nowSec - 2) return null;
+  if (value === undefined || value.trim() === "") return null;
+  const v = Number(value);
+  if (!Number.isFinite(v)) return null;
+  const stamp = Math.min(toSec, nowSec);
+  if (stamp < fromSec) return null;
+  return { t: stamp * 1000, v };
+}
+
+export function withCurrentReading(
+  points: { t: number; v: number }[],
+  point: { t: number; v: number } | null,
+): { t: number; v: number }[] {
+  if (!point) return points;
+  const last = points[points.length - 1];
+  if (!last) return [point];
+  if (last.t > point.t) return points;
+  if (Math.abs(last.t - point.t) < 1000 && last.v === point.v) return points;
+  if (last.t === point.t) return [...points.slice(0, -1), point];
+  return [...points, point];
 }
 
 export function findGraphWidget(layoutJson: string, widgetId: string): SavedGraph | null {
