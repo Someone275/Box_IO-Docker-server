@@ -99,6 +99,20 @@ export function activatePage(layout: BoardLayout, id: string): BoardLayout {
   return syncLayoutScreen({ ...layout, activePageId: id });
 }
 
+/** Pages and widgets, without the page this screen happens to be showing. */
+export function layoutContentKey(layout: BoardLayout) {
+  const saved = serializeLayout(layout);
+  return JSON.stringify({ pages: saved.pages, widgets: saved.widgets });
+}
+
+/** A layout pushed by another app keeps the page already open here. */
+export function keepOpenPage(current: BoardLayout, incoming: BoardLayout): BoardLayout {
+  if (incoming.pages.some((page) => page.id === current.activePageId)) {
+    return activatePage(incoming, current.activePageId);
+  }
+  return incoming;
+}
+
 export function updateActivePage(
   layout: BoardLayout,
   patch: Partial<Pick<BoardPage, "snap" | "columns" | "rows" | "name" | "background">>,

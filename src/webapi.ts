@@ -455,6 +455,35 @@ export function createWebRouter(): Router {
     });
   });
 
+  router.put("/keys/:id", authMiddleware, (req, res) => {
+    const { user } = req as AuthedRequest;
+    if (user.role === "viewer") {
+      res.status(403).json({ error: "This account can only view dashboards" });
+      return;
+    }
+    const parsed = z
+      .object({ name: z.string().min(1).max(80) })
+      .safeParse(req.body);
+    const name = parsed.success ? parsed.data.name.trim() : "";
+    if (!name) {
+      res.status(400).json({ error: "Key name required" });
+      return;
+    }
+    const id = Number(req.params.id);
+    const owned = db
+      .prepare("SELECT id FROM device_keys WHERE id = ? AND user_id = ?")
+      .get(id, user.id);
+    if (!owned) {
+      res.status(404).json({ error: "Key not found" });
+      return;
+    }
+    db.prepare("UPDATE device_keys SET name = ? WHERE id = ? AND user_id = ?").run(name, id, user.id);
+    const key = db
+      .prepare("SELECT id, name, key, last_seen, online FROM device_keys WHERE id = ?")
+      .get(id);
+    res.json({ key });
+  });
+
   router.delete("/keys/:id", authMiddleware, (req, res) => {
     const { user } = req as AuthedRequest;
     if (user.role === "viewer") {

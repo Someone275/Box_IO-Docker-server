@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Copy, Plus, Trash2 } from "lucide-react";
+import { Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { DeviceKey } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ export function KeysPage() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<number | null>(null);
+  const [renameId, setRenameId] = useState<number | null>(null);
+  const [renameName, setRenameName] = useState("");
 
   async function load() {
     try {
@@ -50,6 +52,18 @@ export function KeysPage() {
     if (!confirm("Delete this device key? Hardware using it will disconnect.")) return;
     await api.del(`/api/keys/${id}`);
     await load();
+  }
+
+  async function rename() {
+    const name = renameName.trim();
+    if (renameId == null || !name) return;
+    try {
+      await api.put(`/api/keys/${renameId}`, { name });
+      setRenameId(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not rename key");
+    }
   }
 
   return (
@@ -97,6 +111,17 @@ export function KeysPage() {
                   <Button
                     variant="secondary"
                     size="sm"
+                    onClick={() => {
+                      setRenameId(key.id);
+                      setRenameName(key.name);
+                    }}
+                  >
+                    <Pencil size={14} />
+                    Rename
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={async () => {
                       await navigator.clipboard.writeText(key.key);
                       setCopied(key.id);
@@ -116,6 +141,20 @@ export function KeysPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={renameId != null} onOpenChange={(next) => { if (!next) setRenameId(null); }}>
+        <DialogContent>
+          <DialogTitle>Rename device key</DialogTitle>
+          <DialogDescription>The key itself stays the same. Sketches keep working.</DialogDescription>
+          <div className="mt-4 space-y-3">
+            <Label>Device name</Label>
+            <Input value={renameName} onChange={(e) => setRenameName(e.target.value)} />
+            <Button className="w-full" onClick={() => void rename()}>
+              Save name
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

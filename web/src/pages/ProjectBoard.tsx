@@ -14,6 +14,8 @@ import {
 import {
   activatePage,
   emptyLayout,
+  keepOpenPage,
+  layoutContentKey,
   parseLayout,
   pinKey,
   serializeLayout,
@@ -140,11 +142,19 @@ export function ProjectBoardPage() {
     });
   }
 
+  function contentSnapshot(nextName: string, nextKey: number | "", nextLayout: BoardLayout) {
+    return JSON.stringify({
+      name: nextName,
+      deviceKeyId: nextKey === "" ? null : nextKey,
+      layout: layoutContentKey(nextLayout),
+    });
+  }
+
   applyRemoteRef.current = (row) => {
     if (saveDirty.current) return;
-    const nextLayout = parseLayout(row.layout_json);
+    const nextLayout = keepOpenPage(layout, parseLayout(row.layout_json));
     const nextKey = row.device_key_id ?? "";
-    saveSnapshot.current = boardBody(row.name, nextKey, nextLayout);
+    saveSnapshot.current = contentSnapshot(row.name, nextKey, nextLayout);
     saveDirty.current = false;
     setProject(row);
     setName(row.name);
@@ -164,12 +174,13 @@ export function ProjectBoardPage() {
   useEffect(() => {
     if (!id || !project || project.access === "view") return;
     const body = boardBody(name, projectKeyId, layout);
+    const snapshot = contentSnapshot(name, projectKeyId, layout);
     if (!saveReady.current) {
-      saveSnapshot.current = body;
+      saveSnapshot.current = snapshot;
       saveReady.current = true;
       return;
     }
-    if (body === saveSnapshot.current) return;
+    if (snapshot === saveSnapshot.current) return;
     const gen = ++saveGen.current;
     saveDirty.current = true;
     window.clearTimeout(saveTimer.current);
@@ -178,7 +189,7 @@ export function ProjectBoardPage() {
         try {
           await api.put(`/api/projects/${id}`, JSON.parse(body) as object);
           if (saveGen.current === gen) {
-            saveSnapshot.current = body;
+            saveSnapshot.current = snapshot;
             saveDirty.current = false;
           }
           setSaved("Layout saved");
@@ -239,7 +250,7 @@ export function ProjectBoardPage() {
     try {
       await api.put(`/api/projects/${id}`, JSON.parse(body) as object);
       if (saveGen.current === gen) {
-        saveSnapshot.current = body;
+        saveSnapshot.current = contentSnapshot(name, projectKeyId, layout);
         saveDirty.current = false;
       }
       setSaved("Layout saved");
