@@ -1,4 +1,4 @@
-import { addGraphSeries, appendLiveReading, formatGraphTime, formatGraphValue, graphWindow, holdLiveReading, liveSeriesReadings, niceValueTicks, normalizeGraphSeries, plotGraphSeries, shiftGraphAnchor, timeTicks } from "../src/lib/graph.ts";
+import { addGraphSeries, appendLiveReading, formatGraphTime, formatGraphValue, graphWindow, holdLiveReading, liveSeriesReadings, niceValueTicks, normalizeGraphSeries, plotGraphSeries, shiftGraphAnchor, timeTicks, zoomGraphView } from "../src/lib/graph.ts";
 
 function assert(cond: unknown, message: string) {
   if (!cond) throw new Error(message);
@@ -106,5 +106,13 @@ assert(
 );
 const held = holdLiveReading("264", nowMs, fromMs, nowMs);
 assert(held.length === 2 && held[0].v === 264 && held[1].t === nowMs, "the held line spans the live window");
+
+const zoomed = zoomGraphView({ from: 0, to: 3_600_000, min: 0, max: 100 }, 0.5, 0.5);
+assert(zoomed && zoomed.to - zoomed.from === 1_800_000 && zoomed.min === 25 && zoomed.max === 75, "a click in the middle zooms to half the window");
+const edge = zoomGraphView({ from: 0, to: 10_000, min: 0, max: 10 }, 0, 0);
+assert(edge && edge.from === 0 && edge.to === 5_000 && edge.max === 10 && edge.min === 5, "a click in the corner stays inside the window");
+assert(zoomGraphView({ from: 0, to: 3_000, min: 0, max: 1 }, 0.5, 0.5) === null, "a two-second window does not zoom further");
+const again = zoomed && zoomGraphView(zoomed, 0.25, 0.75);
+assert(again && again.to - again.from === 900_000, "another click zooms the current window");
 
 console.log("graph window ok");

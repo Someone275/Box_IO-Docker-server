@@ -355,13 +355,14 @@ export function WidgetView({
 
   if (widget.type === "graph") {
     return (
-      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad} pinText={graphPins(widget)}>
+      <Shell label={label} pin={widget.pin} deviceName={deviceName} hideLabel={hideCaption} editing={editing} pad={pad} pinText={graphPins(widget)} fontSize={fontSize}>
         <GraphWidget
           projectId={projectId}
           widget={widget}
           deviceKeyId={deviceKeyId}
           values={values}
           editing={editing}
+          fontSize={fontSize}
           onPatchProps={onPatchProps}
         />
       </Shell>
@@ -421,6 +422,7 @@ function Shell({
   editing,
   pinText,
   pad,
+  fontSize,
   children,
 }: {
   label: string;
@@ -431,13 +433,17 @@ function Shell({
   editing?: boolean;
   pinText?: string;
   pad: number;
+  fontSize?: number;
   children: ReactNode;
 }) {
   const meta = showWidgetMeta(editing, showPin);
   return (
     <div className="flex h-full min-h-0 flex-col" style={{ padding: pad, gap: Math.max(2, Math.round(pad / 2)) }}>
       {!hideLabel && (
-        <div className="flex shrink-0 items-center justify-between gap-2 text-[11px] text-muted">
+        <div
+          className="flex shrink-0 items-center justify-between gap-2 text-muted"
+          style={{ fontSize: fontSize && fontSize > 0 ? fontSize : 11, lineHeight: 1.2 }}
+        >
           <span className="truncate">{label}</span>
           {meta && (
             <span className="shrink-0 font-mono text-accent/80">

@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { api } from "@/lib/api";
 import {
   dateInputValue,
@@ -15,8 +15,10 @@ import {
   retentionText,
   shiftGraphAnchor,
   timeTicks,
+  zoomGraphView,
   type GraphMode,
   type GraphPoint,
+  type GraphZoom,
   type LiveSpan,
 } from "@/lib/graph";
 import type { BoardWidget, WidgetProps } from "@/lib/types";
@@ -42,6 +44,7 @@ export function GraphWidget({
   deviceKeyId,
   values,
   editing,
+  fontSize,
   onPatchProps,
 }: {
   projectId?: string;
@@ -49,6 +52,7 @@ export function GraphWidget({
   deviceKeyId: number | null;
   values: Record<string, string>;
   editing?: boolean;
+  fontSize?: number;
   onPatchProps?: (patch: WidgetProps) => void;
 }) {
   const series = useMemo(
@@ -60,9 +64,18 @@ export function GraphWidget({
   const [mode, setMode] = useState<GraphMode>("live");
   const [date, setDate] = useState(() => dateInputValue(new Date()));
   const [time, setTime] = useState("00:00");
+  const [zoom, setZoom] = useState<GraphZoom | null>(null);
   const [data, setData] = useState<GraphResponse | null>(null);
   const [error, setError] = useState("");
   const seriesKey = series.map((item) => `${item.pin}:${item.color}:${item.label}`).join("|");
+  const windowKey = `${mode}|${liveSpan}|${date}|${time}`;
+  const [zoomKey, setZoomKey] = useState(windowKey);
+  if (zoomKey !== windowKey) {
+    setZoomKey(windowKey);
+    setZoom(null);
+  }
+  const textPx = fontSize && fontSize > 0 ? fontSize : undefined;
+  const controlHeight = textPx ? Math.max(28, Math.round(textPx + 12)) : undefined;
 
   useEffect(() => {
     if (!projectId) return;
@@ -71,8 +84,8 @@ export function GraphWidget({
       const span = graphWindow({ mode, liveSpan, date, time });
       const query = new URLSearchParams({
         widget: widget.id,
-        from: String(span.from),
-        to: String(span.to),
+        from: String(zoom ? zoom.from / 1000 : span.from),
+        to: String(zoom ? zoom.to / 1000 : span.to),
       });
       api
         .get<GraphResponse>(`/api/projects/${projectId}/history?${query}`)
@@ -95,29 +108,42 @@ export function GraphWidget({
       stop = true;
       window.clearInterval(timer);
     };
-  }, [projectId, widget.id, mode, liveSpan, date, time, sampleEvery, seriesKey]);
+  }, [projectId, widget.id, mode, liveSpan, date, time, sampleEvery, seriesKey, zoom]);
 
   const span = graphWindow({ mode, liveSpan, date, time });
-  const from = (data?.from ?? span.from) * 1000;
-  const to = mode === "live" ? Math.max((data?.to ?? span.to) * 1000, Date.now()) : (data?.to ?? span.to) * 1000;
+  const from = zoom ? zoom.from : (data?.from ?? span.from) * 1000;
+  const to = zoom ? zoom.to : mode === "live" ? Math.max((data?.to ?? span.to) * 1000, Date.now()) : (data?.to ?? span.to) * 1000;
+  const liveFollow = mode === "live" && (!zoom || zoom.to >= Date.now() - 2000);
   const plotted = plotGraphSeries(
     data?.series,
     series,
-    mode === "live",
+    liveFollow,
     (pin) => readingFor(values, deviceKeyId, pin),
     Date.now(),
     from,
     to,
   );
+  const fullDomain = useMemo(() => valueDomain(plotted.flatMap((item) => item.points)), [plotted]);
+  const domain = zoom ? { min: zoom.min, max: zoom.max } : fullDomain;
+
+  function zoomAt(xFraction: number, yFraction: number) {
+    if (editing || !domain) return;
+    const next = zoomGraphView(zoom ?? { from, to, min: domain.min, max: domain.max }, xFraction, yFraction);
+    if (next) setZoom(next);
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-1" onPointerDown={(event) => event.stopPropagation()}>
+      <div
+        className="flex flex-wrap items-center gap-1"
+        style={{ fontSize: textPx ?? 11, lineHeight: 1.2 }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
         {(["live", "day", "week", "month"] as GraphMode[]).map((item) => (
           <button
             key={item}
             type="button"
-            className={`rounded-md px-2 py-0.5 text-[11px] ${mode === item ? "bg-accent text-bg" : "bg-panel-2 text-muted"}`}
+            className={`rounded-md px-2 py-0.5 ${mode === item ? "bg-accent text-bg" : "bg-panel-2 text-muted"}`}
             onClick={() => setMode(item)}
           >
             {item === "live" ? "Live" : item[0].toUpperCase() + item.slice(1)}
@@ -126,7 +152,7 @@ export function GraphWidget({
         <button
           type="button"
           aria-pressed={widget.props.showTimeScale === true}
-          className={`rounded-md px-2 py-0.5 text-[11px] ${widget.props.showTimeScale ? "bg-accent text-bg" : "bg-panel-2 text-muted"}`}
+          className={`rounded-md px-2 py-0.5 ${widget.props.showTimeScale ? "bg-accent text-bg" : "bg-panel-2 text-muted"}`}
           onClick={() => onPatchProps?.({ showTimeScale: widget.props.showTimeScale !== true })}
         >
           Time scale
@@ -134,15 +160,21 @@ export function GraphWidget({
         <button
           type="button"
           aria-pressed={widget.props.showDataScale === true}
-          className={`rounded-md px-2 py-0.5 text-[11px] ${widget.props.showDataScale ? "bg-accent text-bg" : "bg-panel-2 text-muted"}`}
+          className={`rounded-md px-2 py-0.5 ${widget.props.showDataScale ? "bg-accent text-bg" : "bg-panel-2 text-muted"}`}
           onClick={() => onPatchProps?.({ showDataScale: widget.props.showDataScale !== true })}
         >
           Data scale
         </button>
+        {zoom ? (
+          <button type="button" className="rounded-md bg-panel-2 px-2 py-0.5 text-ink" onClick={() => setZoom(null)}>
+            Reset zoom
+          </button>
+        ) : null}
         {mode === "live" ? (
           <select
             aria-label="Live view"
-            className="h-7 rounded-md border border-line bg-bg px-1 text-[11px]"
+            className="rounded-md border border-line bg-bg px-1"
+            style={{ height: controlHeight ?? 28 }}
             value={liveSpan}
             onChange={(event) => onPatchProps?.({ liveSpan: event.target.value as LiveSpan })}
           >
@@ -154,18 +186,18 @@ export function GraphWidget({
           </select>
         ) : (
           <>
-            <button type="button" className="rounded-md bg-panel-2 px-2 py-0.5 text-[11px] text-ink" onClick={() => {
+            <button type="button" className="rounded-md bg-panel-2 px-2 py-0.5 text-ink" onClick={() => {
               const next = shiftGraphAnchor(date, time, mode, -1);
               setDate(next.date);
               setTime(next.time);
             }}>
               Prev
             </button>
-            <input aria-label="Graph date" type="date" className="h-7 rounded-md border border-line bg-bg px-1 text-[11px]" value={date} onChange={(event) => setDate(event.target.value)} />
+            <input aria-label="Graph date" type="date" className="rounded-md border border-line bg-bg px-1" style={{ height: controlHeight ?? 28 }} value={date} onChange={(event) => setDate(event.target.value)} />
             {mode === "day" ? (
-              <input aria-label="Graph time" type="time" className="h-7 rounded-md border border-line bg-bg px-1 text-[11px]" value={time} onChange={(event) => setTime(event.target.value)} />
+              <input aria-label="Graph time" type="time" className="rounded-md border border-line bg-bg px-1" style={{ height: controlHeight ?? 28 }} value={time} onChange={(event) => setTime(event.target.value)} />
             ) : null}
-            <button type="button" className="rounded-md bg-panel-2 px-2 py-0.5 text-[11px] text-ink" onClick={() => {
+            <button type="button" className="rounded-md bg-panel-2 px-2 py-0.5 text-ink" onClick={() => {
               const next = shiftGraphAnchor(date, time, mode, 1);
               setDate(next.date);
               setTime(next.time);
@@ -179,10 +211,17 @@ export function GraphWidget({
         series={plotted}
         from={from}
         to={to}
+        domain={domain}
+        fontSize={textPx ?? 10}
         showTimeScale={widget.props.showTimeScale === true}
         showDataScale={widget.props.showDataScale === true}
+        onZoom={editing ? undefined : zoomAt}
       />
-      <div className="flex flex-wrap gap-x-2 text-[10px] text-muted" onPointerDown={(event) => event.stopPropagation()}>
+      <div
+        className="flex flex-wrap gap-x-2 text-muted"
+        style={{ fontSize: textPx ?? 10, lineHeight: 1.2 }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
         {plotted.map((item) => {
           const latest = item.points[item.points.length - 1];
           return (
@@ -195,7 +234,7 @@ export function GraphWidget({
         })}
         {editing ? <span>{retentionText(sampleEvery)}</span> : null}
       </div>
-      {error ? <p className="text-[11px] text-danger">{error}</p> : null}
+      {error ? <p className="text-danger" style={{ fontSize: textPx ?? 11, lineHeight: 1.2 }}>{error}</p> : null}
     </div>
   );
 }
@@ -204,14 +243,20 @@ function GraphPlot({
   series,
   from,
   to,
+  domain,
+  fontSize,
   showTimeScale,
   showDataScale,
+  onZoom,
 }: {
   series: { color: string; points: GraphPoint[] }[];
   from: number;
   to: number;
+  domain: { min: number; max: number } | null;
+  fontSize: number;
   showTimeScale: boolean;
   showDataScale: boolean;
+  onZoom?: (xFraction: number, yFraction: number) => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -235,18 +280,21 @@ function GraphPlot({
   const empty = !points.length || to <= from;
   return (
     <div ref={boxRef} className="relative min-h-0 w-full flex-1">
-      {empty ? (
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-muted">No stored readings in this window.</div>
+      {empty || !domain ? (
+        <div className="absolute inset-0 flex items-center justify-center text-muted" style={{ fontSize, lineHeight: 1.2 }}>No stored readings in this window.</div>
       ) : size.w > 8 && size.h > 8 ? (
         <GraphSvg
           series={series}
           from={from}
           to={to}
+          domain={domain}
+          fontSize={fontSize}
           width={size.w}
           height={size.h}
           showTimeScale={showTimeScale}
           showDataScale={showDataScale}
           clipId={clipId}
+          onZoom={onZoom}
         />
       ) : null}
     </div>
@@ -257,43 +305,62 @@ function GraphSvg({
   series,
   from,
   to,
+  domain,
+  fontSize,
   width,
   height,
   showTimeScale,
   showDataScale,
   clipId,
+  onZoom,
 }: {
   series: { color: string; points: GraphPoint[] }[];
   from: number;
   to: number;
+  domain: { min: number; max: number };
+  fontSize: number;
   width: number;
   height: number;
   showTimeScale: boolean;
   showDataScale: boolean;
   clipId: string;
+  onZoom?: (xFraction: number, yFraction: number) => void;
 }) {
-  const points = series.flatMap((item) => item.points);
-  let low = points[0].v;
-  let high = points[0].v;
-  for (const point of points) {
-    if (point.v < low) low = point.v;
-    if (point.v > high) high = point.v;
-  }
-  const domain = paddedValueRange(low, high);
   const span = Math.max(1, to - from);
-  const left = showDataScale ? Math.min(52, Math.max(32, Math.round(width * 0.18))) : 8;
+  const custom = fontSize !== 10;
+  const left = showDataScale
+    ? Math.min(width * 0.4, Math.max(custom ? fontSize * 4.6 : 32, Math.round(width * 0.18)))
+    : 8;
   const right = 8;
   const top = 8;
-  const bottom = showTimeScale ? 20 : 8;
+  const bottom = showTimeScale ? (custom ? fontSize + 10 : 20) : 8;
   const plotW = Math.max(1, width - left - right);
   const plotH = Math.max(1, height - top - bottom);
   const xOf = (t: number) => left + ((t - from) / span) * plotW;
   const yOf = (v: number) => top + (1 - (v - domain.min) / (domain.max - domain.min)) * plotH;
-  const valueTicks = showDataScale ? niceValueTicks(domain.min, domain.max, Math.max(2, Math.min(5, Math.floor(plotH / 28)))) : [];
-  const stamps = showTimeScale ? timeTicks(from, to, Math.max(2, Math.min(6, Math.floor(plotW / 72)))) : [];
+  const valueTicks = showDataScale ? niceValueTicks(domain.min, domain.max, Math.max(2, Math.min(5, Math.floor(plotH / Math.max(28, fontSize * 2.4))))) : [];
+  const stamps = showTimeScale ? timeTicks(from, to, Math.max(2, Math.min(6, Math.floor(plotW / Math.max(72, fontSize * 6))))) : [];
+
+  function zoomFromEvent(event: ReactMouseEvent<SVGSVGElement>) {
+    if (!onZoom) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const x = ((event.clientX - rect.left) / rect.width) * width;
+    const y = ((event.clientY - rect.top) / rect.height) * height;
+    if (x < left || x > left + plotW || y < top || y > top + plotH) return;
+    onZoom((x - left) / plotW, (y - top) / plotH);
+  }
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full" role="img" aria-label="Graph">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      className={`absolute inset-0 h-full w-full ${onZoom ? "cursor-zoom-in" : ""}`}
+      role="img"
+      aria-label={onZoom ? "Graph. Click to zoom in." : "Graph"}
+      onPointerDown={onZoom ? (event) => event.stopPropagation() : undefined}
+      onClick={onZoom ? zoomFromEvent : undefined}
+    >
       <defs>
         <clipPath id={clipId}>
           <rect x={left} y={top} width={plotW} height={plotH} />
@@ -306,7 +373,7 @@ function GraphSvg({
         return (
           <g key={`v${tick}`}>
             <line x1={left} y1={y} x2={left + plotW} y2={y} stroke="#243044" strokeWidth="1" />
-            <text x={4} y={y + 3} fill="#8b9bb4" fontSize="10" fontFamily="ui-monospace, monospace">
+            <text x={4} y={y + fontSize * 0.35} fill="#8b9bb4" fontSize={fontSize} fontFamily="ui-monospace, monospace">
               {formatGraphValue(tick)}
             </text>
           </g>
@@ -332,11 +399,22 @@ function GraphSvg({
         const x = xOf(stamp);
         const anchor = x < left + 28 ? "start" : x > width - 28 ? "end" : "middle";
         return (
-          <text key={stamp} x={x} y={height - 4} textAnchor={anchor} fill="#8b9bb4" fontSize="10" fontFamily="ui-monospace, monospace">
+          <text key={stamp} x={x} y={height - 4} textAnchor={anchor} fill="#8b9bb4" fontSize={fontSize} fontFamily="ui-monospace, monospace">
             {formatGraphTime(stamp, span)}
           </text>
         );
       })}
     </svg>
   );
+}
+
+function valueDomain(points: GraphPoint[]): { min: number; max: number } | null {
+  if (!points.length) return null;
+  let low = points[0].v;
+  let high = points[0].v;
+  for (const point of points) {
+    if (point.v < low) low = point.v;
+    if (point.v > high) high = point.v;
+  }
+  return paddedValueRange(low, high);
 }

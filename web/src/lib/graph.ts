@@ -156,6 +156,53 @@ const TIME_STEPS_MS = [
   3_600_000, 7_200_000, 10_800_000, 21_600_000, 43_200_000, 86_400_000, 172_800_000, 604_800_000,
 ];
 
+export interface GraphZoom {
+  from: number;
+  to: number;
+  min: number;
+  max: number;
+}
+
+/** Half the current window, centered on a plot click. Stops near a 2 second span. */
+export function zoomGraphView(
+  view: GraphZoom,
+  xFraction: number,
+  yFraction: number,
+  factor = 0.5,
+): GraphZoom | null {
+  if (!(view.to > view.from) || !(view.max > view.min)) return null;
+  if (![xFraction, yFraction, factor].every((n) => Number.isFinite(n))) return null;
+  if (xFraction < 0 || xFraction > 1 || yFraction < 0 || yFraction > 1) return null;
+  if (!(factor > 0) || factor >= 1) return null;
+  const nextWidth = (view.to - view.from) * factor;
+  const nextHeight = (view.max - view.min) * factor;
+  if (nextWidth < 2000 || !(nextHeight > 0)) return null;
+  const at = view.from + xFraction * (view.to - view.from);
+  const value = view.max - yFraction * (view.max - view.min);
+  let from = at - nextWidth / 2;
+  let to = at + nextWidth / 2;
+  if (from < view.from) {
+    from = view.from;
+    to = from + nextWidth;
+  }
+  if (to > view.to) {
+    to = view.to;
+    from = to - nextWidth;
+  }
+  let min = value - nextHeight / 2;
+  let max = value + nextHeight / 2;
+  if (min < view.min) {
+    min = view.min;
+    max = min + nextHeight;
+  }
+  if (max > view.max) {
+    max = view.max;
+    min = max - nextHeight;
+  }
+  if (!(to > from) || !(max > min)) return null;
+  return { from, to, min, max };
+}
+
 export function paddedValueRange(min: number, max: number): { min: number; max: number } {
   if (!Number.isFinite(min) || !Number.isFinite(max)) return { min: 0, max: 1 };
   if (min === max) return { min: min - 1, max: max + 1 };
