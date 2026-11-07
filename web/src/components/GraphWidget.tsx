@@ -1,7 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { api } from "@/lib/api";
 import {
+  coverGraphWindow,
   dateInputValue,
+  filledLiveWindow,
   formatGraphTime,
   formatGraphValue,
   graphWindow,
@@ -67,6 +69,7 @@ export function GraphWidget({
   const [zoom, setZoom] = useState<GraphZoom | null>(null);
   const [data, setData] = useState<GraphResponse | null>(null);
   const [error, setError] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const seriesKey = series.map((item) => `${item.pin}:${item.color}:${item.label}`).join("|");
   const windowKey = `${mode}|${liveSpan}|${date}|${time}`;
   const [zoomKey, setZoomKey] = useState(windowKey);
@@ -76,6 +79,12 @@ export function GraphWidget({
   }
   const textPx = fontSize && fontSize > 0 ? fontSize : undefined;
   const controlHeight = textPx ? Math.max(28, Math.round(textPx + 12)) : undefined;
+
+  useEffect(() => {
+    if (mode !== "live" || zoom) return;
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [mode, zoom]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -110,20 +119,29 @@ export function GraphWidget({
     };
   }, [projectId, widget.id, mode, liveSpan, date, time, sampleEvery, seriesKey, zoom]);
 
-  const span = graphWindow({ mode, liveSpan, date, time });
-  const from = zoom ? zoom.from : (data?.from ?? span.from) * 1000;
-  const to = zoom ? zoom.to : mode === "live" ? Math.max((data?.to ?? span.to) * 1000, Date.now()) : (data?.to ?? span.to) * 1000;
-  const liveFollow = mode === "live" && (!zoom || zoom.to >= Date.now() - 2000);
+  const span = graphWindow({ mode, liveSpan, date, time, now: new Date(nowMs) });
+  const windowFrom = zoom ? zoom.from : span.from * 1000;
+  const windowTo = zoom ? zoom.to : span.to * 1000;
+  const liveFollow = mode === "live" && (!zoom || zoom.to >= nowMs - 2000);
   const plotted = plotGraphSeries(
     data?.series,
     series,
     liveFollow,
     (pin) => readingFor(values, deviceKeyId, pin),
-    Date.now(),
-    from,
-    to,
+    nowMs,
+    windowFrom,
+    windowTo,
   );
-  const fullDomain = useMemo(() => valueDomain(plotted.flatMap((item) => item.points)), [plotted]);
+  const visible = mode === "live" && !zoom
+    ? filledLiveWindow(windowFrom, windowTo, plotted.flatMap((item) => item.points))
+    : { from: windowFrom, to: windowTo };
+  const shown = useMemo(
+    () => plotted.map((item) => ({ ...item, points: coverGraphWindow(item.points, visible.from, visible.to, nowMs) })),
+    [plotted, visible.from, visible.to, nowMs],
+  );
+  const from = visible.from;
+  const to = visible.to;
+  const fullDomain = useMemo(() => valueDomain(shown.flatMap((item) => item.points)), [shown]);
   const domain = zoom ? { min: zoom.min, max: zoom.max } : fullDomain;
 
   function zoomAt(xFraction: number, yFraction: number) {
@@ -208,7 +226,7 @@ export function GraphWidget({
         )}
       </div>
       <GraphPlot
-        series={plotted}
+        series={shown}
         from={from}
         to={to}
         domain={domain}
@@ -222,7 +240,7 @@ export function GraphWidget({
         style={{ fontSize: textPx ?? 10, lineHeight: 1.2 }}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        {plotted.map((item) => {
+        {shown.map((item) => {
           const latest = item.points[item.points.length - 1];
           return (
             <span key={item.pin} className="inline-flex items-center gap-1">

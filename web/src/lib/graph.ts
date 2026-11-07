@@ -366,6 +366,49 @@ export function plotGraphSeries(
   }));
 }
 
+/**
+ * Draw the value that was already in effect at the left edge, and hold the
+ * last value through the right edge. A minute window can then slide without
+ * the line collapsing onto the right when its oldest reading ages out.
+ */
+export function coverGraphWindow(points: GraphPoint[], fromMs: number, toMs: number, nowMs = toMs): GraphPoint[] {
+  if (!(toMs > fromMs) || !points.length) return points;
+  const end = Math.min(toMs, Math.max(fromMs, nowMs));
+  if (!(end > fromMs)) return points;
+  const sorted = [...points].filter((point) => Number.isFinite(point.t) && Number.isFinite(point.v)).sort((a, b) => a.t - b.t);
+  if (!sorted.length) return points;
+  let prior: GraphPoint | null = null;
+  const inside: GraphPoint[] = [];
+  for (const point of sorted) {
+    if (point.t <= fromMs) prior = point;
+    else if (point.t <= end) inside.push(point);
+  }
+  const covered: GraphPoint[] = [];
+  if (prior) covered.push({ t: fromMs, v: prior.v });
+  covered.push(...inside);
+  if (!covered.length) return covered;
+  const last = covered[covered.length - 1];
+  if (last.t < end) covered.push({ t: end, v: last.v });
+  return covered;
+}
+
+/**
+ * Use the selected live span, but start at the first stored reading when that
+ * is later than the span. The line fills the chart on load and when the span
+ * changes. Once the readings reach the left edge, the span stays put and slides.
+ */
+export function filledLiveWindow(fromMs: number, toMs: number, points: GraphPoint[]): { from: number; to: number } {
+  if (!(toMs > fromMs)) return { from: fromMs, to: toMs };
+  let earliest = Infinity;
+  for (const point of points) {
+    if (Number.isFinite(point.t) && point.t < earliest) earliest = point.t;
+  }
+  if (!Number.isFinite(earliest) || earliest <= fromMs) return { from: fromMs, to: toMs };
+  const from = Math.min(earliest, toMs - 1000);
+  if (!(toMs > from)) return { from: fromMs, to: toMs };
+  return { from, to: toMs };
+}
+
 export function shiftGraphAnchor(date: string, time: string, mode: GraphMode, direction: -1 | 1): { date: string; time: string } {
   const current = parseLocal(date, time || "00:00");
   if (mode === "month") current.setMonth(current.getMonth() + direction);

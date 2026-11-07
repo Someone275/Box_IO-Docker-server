@@ -226,6 +226,50 @@ function readInterval(
   return points;
 }
 
+const STORED_INTERVALS = [1, 60, 3600];
+
+function latestBefore(
+  deviceKeyId: number,
+  pin: number,
+  intervalSec: number,
+  beforeSec: number,
+): { bucket: number; value: number } | undefined {
+  return db
+    .prepare(
+      `SELECT bucket, value FROM pin_history
+       WHERE device_key_id = ? AND pin = ? AND interval_sec = ? AND bucket <= ?
+       ORDER BY bucket DESC LIMIT 1`,
+    )
+    .get(deviceKeyId, pin, intervalSec, beforeSec) as { bucket: number; value: number } | undefined;
+}
+
+/**
+ * The reading still in effect at the left edge. A 1 minute, 1 week, or 1 month
+ * window otherwise starts at the first bucket inside it, so the line sits on
+ * the right until that bucket ages out and the trace jumps back.
+ */
+function carriedInto(deviceKeyId: number, pin: number, intervalSec: number, fromSec: number): { t: number; v: number } | null {
+  let best: { bucket: number; value: number } | undefined;
+  const seen = new Set<number>();
+  for (const interval of [intervalSec, ...STORED_INTERVALS]) {
+    if (!Number.isFinite(interval) || interval <= 0 || seen.has(interval)) continue;
+    seen.add(interval);
+    const row = latestBefore(deviceKeyId, pin, interval, fromSec);
+    if (row && (!best || row.bucket > best.bucket)) best = row;
+  }
+  if (!best) return null;
+  return { t: fromSec * 1000, v: best.value };
+}
+
+function withCarriedStart(
+  points: { t: number; v: number }[],
+  carried: { t: number; v: number } | null,
+): { t: number; v: number }[] {
+  if (!carried) return points;
+  if (points.some((point) => point.t <= carried.t)) return points;
+  return [carried, ...points];
+}
+
 export function readPinHistory(
   deviceKeyId: number,
   pin: number,
@@ -237,21 +281,25 @@ export function readPinHistory(
   const from = Math.floor(fromSec);
   const to = Math.floor(toSec);
   if (to <= from) return [];
-  const primary = readInterval(deviceKeyId, pin, intervalSec, from, to, maxPoints);
-  if (primary.length) return primary;
-  const others = db
-    .prepare(
-      `SELECT DISTINCT interval_sec AS interval_sec FROM pin_history
-       WHERE device_key_id = ? AND pin = ? AND bucket >= ? AND bucket < ?
-       ORDER BY interval_sec ASC`,
-    )
-    .all(deviceKeyId, pin, from, to) as { interval_sec: number }[];
-  for (const row of others) {
-    if (row.interval_sec === intervalSec) continue;
-    const alt = readInterval(deviceKeyId, pin, row.interval_sec, from, to, maxPoints);
-    if (alt.length) return alt;
+  let points = readInterval(deviceKeyId, pin, intervalSec, from, to, maxPoints);
+  if (!points.length) {
+    const others = db
+      .prepare(
+        `SELECT DISTINCT interval_sec AS interval_sec FROM pin_history
+         WHERE device_key_id = ? AND pin = ? AND bucket >= ? AND bucket < ?
+         ORDER BY interval_sec ASC`,
+      )
+      .all(deviceKeyId, pin, from, to) as { interval_sec: number }[];
+    for (const row of others) {
+      if (row.interval_sec === intervalSec) continue;
+      const alt = readInterval(deviceKeyId, pin, row.interval_sec, from, to, maxPoints);
+      if (alt.length) {
+        points = alt;
+        break;
+      }
+    }
   }
-  return primary;
+  return withCarriedStart(points, carriedInto(deviceKeyId, pin, intervalSec, from));
 }
 
 export function storedPinValue(deviceKeyId: number, pin: number): string | undefined {

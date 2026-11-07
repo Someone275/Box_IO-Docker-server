@@ -79,7 +79,8 @@ for (let i = 0; i < 100; i++) {
   recordPinHistory(userId, deviceId, 2, String(i), (start + i * 60) * 1000);
 }
 const down = readPinHistory(deviceId, 2, 60, start, start + 100 * 60, 10);
-assert(down.length === 10, `downsample keeps 10 points, got ${down.length}`);
+assert(down.length === 11, `downsample keeps 10 slices plus the value at the left edge, got ${down.length}`);
+assert(down[0].t === start * 1000 && down[0].v === 0, "the left edge is the reading in effect at the start");
 assert(down[down.length - 1].v === 99, `last downsampled reading should be 99, got ${down[down.length - 1].v}`);
 assert(down[0].v < down[down.length - 1].v, "downsampled readings move forward in time");
 
@@ -165,6 +166,40 @@ assert(
 const line = withCurrentReading([{ t: (nowSec - 30) * 1000, v: 10 }], point);
 assert(line.length === 2 && line[1].v === 18, "the current value is the last point");
 assert(withCurrentReading([{ t: nowSec * 1000, v: 18 }], point).length === 1, "the same current reading is not duplicated");
+
+const origin = 1_700_000_000 - (1_700_000_000 % 60);
+const insertHistory = db.prepare(
+  "INSERT INTO pin_history (device_key_id, pin, interval_sec, bucket, value) VALUES (?, ?, ?, ?, ?)",
+);
+insertHistory.run(deviceId, 9, 60, origin, 10);
+insertHistory.run(deviceId, 9, 60, origin + 60, 14);
+const rolled = readPinHistory(deviceId, 9, 60, origin + 61, origin + 121);
+assert(
+  rolled[0]?.t === (origin + 61) * 1000 && rolled[0]?.v === 14,
+  `a minute window keeps the reading that just left the left edge, got ${JSON.stringify(rolled)}`,
+);
+insertHistory.run(deviceId, 9, 60, origin + 3600, 18);
+const spanned = readPinHistory(deviceId, 9, 60, origin + 10, origin + 7200);
+assert(spanned[0]?.t === (origin + 10) * 1000 && spanned[0]?.v === 10, "a window starts at the value already in effect");
+assert(spanned.some((point) => point.v === 18), "later readings stay in the window");
+const carriedOnly = readPinHistory(deviceId, 9, 3600, origin + 120, origin + 180);
+assert(
+  carriedOnly.length === 1 && carriedOnly[0].v === 14 && carriedOnly[0].t === (origin + 120) * 1000,
+  `a reading stored at another rate still anchors the left edge, got ${JSON.stringify(carriedOnly)}`,
+);
+
+const weekFrom = origin + 20 * 86400;
+for (let i = 0; i < 7 * 24 * 6; i++) insertHistory.run(deviceId, 8, 60, weekFrom + i * 600, 100 + (i % 50));
+const week = readPinHistory(deviceId, 8, 60, weekFrom, weekFrom + 7 * 86400);
+assert(week[0]?.t === weekFrom * 1000, `a week of readings starts at the left edge, got ${week[0]?.t}`);
+assert(week[week.length - 1].t >= (weekFrom + 7 * 86400 - 3600) * 1000, "a week of readings reaches the right side");
+assert(week.length > 100, `a week is not collapsed to one slice, got ${week.length}`);
+const month = readPinHistory(deviceId, 8, 60, weekFrom, weekFrom + 31 * 86400);
+assert(month[0]?.t === weekFrom * 1000, "a month window still starts where the readings start");
+assert(month.length > 100, `a month keeps the week's readings, got ${month.length}`);
+insertHistory.run(deviceId, 6, 60, weekFrom + 5 * 86400, 237);
+const partial = readPinHistory(deviceId, 6, 60, weekFrom, weekFrom + 7 * 86400);
+assert(partial.length === 1 && partial[0].v === 237 && partial[0].t === (weekFrom + 5 * 86400) * 1000, "a late first reading is not moved earlier");
 
 console.log("pin history ok");
 const dir = process.env.DATA_DIR || "";

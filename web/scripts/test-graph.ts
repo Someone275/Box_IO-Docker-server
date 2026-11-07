@@ -1,4 +1,4 @@
-import { addGraphSeries, appendLiveReading, formatGraphTime, formatGraphValue, graphWindow, holdLiveReading, liveSeriesReadings, niceValueTicks, normalizeGraphSeries, plotGraphSeries, shiftGraphAnchor, timeTicks, zoomGraphView } from "../src/lib/graph.ts";
+import { addGraphSeries, appendLiveReading, coverGraphWindow, filledLiveWindow, formatGraphTime, formatGraphValue, graphWindow, holdLiveReading, liveSeriesReadings, niceValueTicks, normalizeGraphSeries, plotGraphSeries, shiftGraphAnchor, timeTicks, zoomGraphView } from "../src/lib/graph.ts";
 
 function assert(cond: unknown, message: string) {
   if (!cond) throw new Error(message);
@@ -114,5 +114,68 @@ assert(edge && edge.from === 0 && edge.to === 5_000 && edge.max === 10 && edge.m
 assert(zoomGraphView({ from: 0, to: 3_000, min: 0, max: 1 }, 0.5, 0.5) === null, "a two-second window does not zoom further");
 const again = zoomed && zoomGraphView(zoomed, 0.25, 0.75);
 assert(again && again.to - again.from === 900_000, "another click zooms the current window");
+
+const minutePoints = [
+  { t: 0, v: 10 },
+  { t: 50_000, v: 12 },
+];
+const openMinute = filledLiveWindow(0, 60_000, minutePoints);
+assert(openMinute.from === 0 && openMinute.to === 60_000, "a minute that already has readings keeps the full minute");
+const drawnMinute = coverGraphWindow(minutePoints, openMinute.from, openMinute.to, 60_000);
+assert(drawnMinute[0].t === 0 && drawnMinute[drawnMinute.length - 1].t === 60_000, "the minute line touches both edges");
+const slid = filledLiveWindow(61_000, 121_000, minutePoints);
+assert(slid.from === 61_000 && slid.to === 121_000, "when the minute line reaches the left the window slides");
+const slidLine = coverGraphWindow(minutePoints, slid.from, slid.to, 121_000);
+assert(slidLine[0].t === 61_000 && slidLine[0].v === 12, "the value still in effect stays on the left edge");
+assert(slidLine[slidLine.length - 1].t === 121_000 && slidLine[slidLine.length - 1].v === 12, "the minute line does not jump back to the right");
+const stepped = coverGraphWindow(
+  [
+    { t: 0, v: 10 },
+    { t: 90_000, v: 14 },
+  ],
+  61_000,
+  121_000,
+  121_000,
+);
+assert(stepped[0].t === 61_000 && stepped[0].v === 10, "the older minute reading is held at the left");
+assert(stepped.some((point) => point.t === 90_000 && point.v === 14), "the new minute reading stays where it happened");
+assert(stepped[stepped.length - 1].t === 121_000, "the new reading is held to the right edge");
+
+const weekTo = 7 * 86400 * 1000;
+const partialWeek = filledLiveWindow(0, weekTo, [
+  { t: 5 * 86400 * 1000, v: 237 },
+  { t: weekTo, v: 238 },
+]);
+assert(partialWeek.from === 5 * 86400 * 1000, "a week with a later first reading starts at that reading");
+const partialLine = coverGraphWindow(
+  [
+    { t: 5 * 86400 * 1000, v: 237 },
+    { t: weekTo, v: 238 },
+  ],
+  partialWeek.from,
+  partialWeek.to,
+  weekTo,
+);
+assert(partialLine[0].t === partialWeek.from && partialLine[partialLine.length - 1].t === partialWeek.to, "the shorter week history fills the chart");
+const monthTo = 31 * 86400 * 1000;
+const partialMonth = filledLiveWindow(0, monthTo, [{ t: 20 * 86400 * 1000, v: 68 }]);
+assert(partialMonth.from === 20 * 86400 * 1000, "a month starts at the first stored reading");
+const heldWeek = filledLiveWindow(0, weekTo, [
+  { t: 0, v: 200 },
+  { t: 5 * 86400 * 1000, v: 237 },
+]);
+assert(heldWeek.from === 0, "a reading already in effect keeps the full week");
+const heldLine = coverGraphWindow(
+  [
+    { t: 0, v: 200 },
+    { t: 5 * 86400 * 1000, v: 237 },
+  ],
+  heldWeek.from,
+  heldWeek.to,
+  weekTo,
+);
+assert(heldLine[0].t === 0 && heldLine[0].v === 200 && heldLine[heldLine.length - 1].t === weekTo, "the week line runs from the left edge to now");
+const fresh = filledLiveWindow(0, 60_000, [{ t: 60_000, v: 5 }]);
+assert(fresh.to - fresh.from === 1000, "a single new reading still has a visible span");
 
 console.log("graph window ok");
