@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { api, getToken, setToken } from "@/lib/api";
+import { setResumeUser } from "@/lib/resume";
 import type { User } from "@/lib/types";
 import { AppShell } from "@/components/AppShell";
 import { LoginPage, SetupPage } from "@/pages/Login";
@@ -42,6 +43,8 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  if (user) setResumeUser(user.id);
 
   if (!ready) {
     return (

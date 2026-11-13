@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Cpu,
   FolderKanban,
@@ -12,11 +12,27 @@ import {
   X,
 } from "lucide-react";
 import { api, setToken } from "@/lib/api";
+import { readPlace, restorePath, writePlace } from "@/lib/resume";
 import type { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+let restoredEntry = false;
+
 export function AppShell({ user }: { user: User }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  useEffect(() => {
+    const path = location.pathname;
+    if (!restoredEntry) {
+      restoredEntry = true;
+      const saved = restorePath(path, readPlace(user.id));
+      if (saved) {
+        navigate(saved, { replace: true });
+        return;
+      }
+    }
+    writePlace(user.id, path);
+  }, [location, navigate, user.id]);
   const [licensed, setLicensed] = useState(true);
   const [pendingCheckout, setPendingCheckout] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

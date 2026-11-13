@@ -112,6 +112,33 @@ const otherId = Number((other.data.project as { id: number }).id);
 const hidden = await call(`/api/projects/${otherId}`, { token: viewerToken });
 assert(hidden.status === 404, "viewer cannot open a project that was not shared");
 
+const madeKey = await call("/api/keys", {
+  method: "POST",
+  token: ownerToken,
+  body: { name: "Pump" },
+});
+assert(madeKey.status === 200, "owner creates a device key");
+const pumpKey = madeKey.data.key as { id: number; key: string };
+await call(`/api/projects/${projectId}`, {
+  method: "PUT",
+  token: ownerToken,
+  body: { deviceKeyId: pumpKey.id },
+});
+await call(`/api/projects/${projectId}/pins/1`, {
+  method: "PUT",
+  token: ownerToken,
+  body: { value: "72", deviceKeyId: pumpKey.id },
+});
+const sharedPins = await call(`/api/projects/${projectId}/pins`, { token: viewerToken });
+const sharedDevices = sharedPins.data.devices as { deviceKeyId: number; name: string; online: number; key?: string; pins: { pin: number }[] }[];
+assert(sharedPins.status === 200 && sharedDevices.length === 1, "viewer reads pins for the shared dashboard");
+assert(sharedDevices[0].deviceKeyId === pumpKey.id && sharedDevices[0].name === "Pump", "shared pins name the device");
+assert(sharedDevices[0].key === undefined, "shared pins do not include the device secret");
+assert(sharedDevices[0].pins.some((row) => row.pin === 1), "shared pins include the project pin");
+const ownPins = await call("/api/pins", { token: viewerToken });
+const ownDevices = ownPins.data.devices as unknown[];
+assert(ownPins.status === 200 && ownDevices.length === 0, "a viewer account has no pins of its own");
+
 const viewerKeys = await call("/api/keys", { token: viewerToken });
 assert(viewerKeys.status === 200 && Array.isArray(viewerKeys.data.keys) && viewerKeys.data.keys.length === 0, "viewer has no device keys");
 const viewerProject = await call("/api/projects", { method: "POST", token: viewerToken, body: { name: "Nope" } });

@@ -1,6 +1,7 @@
 import { buttonIsOn, buttonValues } from "../src/lib/utils.ts";
 import { grabOffsetCells, snapEdge } from "../src/lib/gridSnap.ts";
-import { parseLayout, serializeLayout } from "../src/lib/layout.ts";
+import { keepOpenPage, layoutContentKey, parseLayout, rememberedPageId, serializeLayout } from "../src/lib/layout.ts";
+import { restorePath } from "../src/lib/resume.ts";
 
 function assert(cond: unknown, message: string) {
   if (!cond) throw new Error(message);
@@ -58,5 +59,20 @@ assert(Array.isArray(saved.widgets), "serialize keeps a widgets mirror");
 
 const bad = parseLayout("{");
 assert(bad.pages.length === 1 && bad.pages[0].widgets.length === 0, "invalid json falls back");
+
+const viewing = parseLayout(JSON.stringify({ activePageId: "p1", pages: saved.pages }));
+const fromOtherApp = parseLayout(JSON.stringify({ ...saved, activePageId: "p2" }));
+const stayed = keepOpenPage(viewing, fromOtherApp);
+assert(stayed.activePageId === "p1", "an open app keeps its page when another app changes pages");
+assert(stayed.pages[1].widgets[0].props.text === "Hi", "widget edits from the other app still arrive");
+assert(layoutContentKey(viewing) === layoutContentKey(fromOtherApp), "page choice is not part of the shared layout");
+const removed = keepOpenPage(viewing, parseLayout(JSON.stringify({ activePageId: "p2", pages: [saved.pages[1]] })));
+assert(removed.activePageId === "p2", "a deleted local page falls through to the saved page");
+assert(rememberedPageId(multi, "p2") === "p2", "a saved page that still exists is reopened");
+assert(rememberedPageId(multi, "missing") === null, "a deleted saved page is ignored");
+assert(rememberedPageId(multi, null) === null, "no saved page stays on the project page");
+assert(restorePath("/", "/projects/4") === "/projects/4", "a fresh load leaves the projects page for the last screen");
+assert(restorePath("/", "/projects/4/edit") === null, "only known app screens are restored");
+assert(restorePath("/projects/4", "/keys") === null, "an address that is already open is left alone");
 
 console.log("board helpers ok");

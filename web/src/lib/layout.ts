@@ -105,6 +105,12 @@ export function layoutContentKey(layout: BoardLayout) {
   return JSON.stringify({ pages: saved.pages, widgets: saved.widgets });
 }
 
+/** The page this device last had open, when that page is still on the board. */
+export function rememberedPageId(layout: BoardLayout, saved: string | null | undefined): string | null {
+  if (!saved) return null;
+  return layout.pages.some((page) => page.id === saved) ? saved : null;
+}
+
 /** A layout pushed by another app keeps the page already open here. */
 export function keepOpenPage(current: BoardLayout, incoming: BoardLayout): BoardLayout {
   if (incoming.pages.some((page) => page.id === current.activePageId)) {

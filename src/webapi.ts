@@ -689,23 +689,30 @@ export function createWebRouter(): Router {
     const keyIds = referencedDeviceKeyIds(projectRow.layout_json || "{}", projectRow.device_key_id).filter(
       (keyId) => deviceForAccess(opened, user.id, keyId),
     );
-    const devices = keyIds.map((keyId) => ({
-      deviceKeyId: keyId,
-      pins: hideRows(
-        db.prepare("SELECT pin, value, updated_at FROM pin_values WHERE device_key_id = ?").all(keyId) as {
-          pin: number;
-          value: string;
-          updated_at: string;
-        }[],
-      ),
-      properties: hideRows(
-        db.prepare("SELECT pin, prop, value FROM pin_properties WHERE device_key_id = ?").all(keyId) as {
-          pin: number;
-          prop: string;
-          value: string;
-        }[],
-      ),
-    }));
+    const devices = keyIds.map((keyId) => {
+      const meta = db.prepare("SELECT name, online FROM device_keys WHERE id = ?").get(keyId) as
+        | { name: string; online: number }
+        | undefined;
+      return {
+        deviceKeyId: keyId,
+        name: meta?.name ?? "",
+        online: meta?.online ?? 0,
+        pins: hideRows(
+          db.prepare("SELECT pin, value, updated_at FROM pin_values WHERE device_key_id = ?").all(keyId) as {
+            pin: number;
+            value: string;
+            updated_at: string;
+          }[],
+        ),
+        properties: hideRows(
+          db.prepare("SELECT pin, prop, value FROM pin_properties WHERE device_key_id = ?").all(keyId) as {
+            pin: number;
+            prop: string;
+            value: string;
+          }[],
+        ),
+      };
+    });
     const primary = project.device_key_id
       ? devices.find((d) => d.deviceKeyId === project.device_key_id)
       : undefined;

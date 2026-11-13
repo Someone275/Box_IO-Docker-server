@@ -17,6 +17,7 @@ import {
   keepOpenPage,
   layoutContentKey,
   parseLayout,
+  rememberedPageId,
   pinKey,
   serializeLayout,
   syncLayoutScreen,
@@ -33,6 +34,7 @@ import {
 } from "@/lib/screen";
 import { addColorDivision, dpadPins, lineWidth, liveStr, MAX_COLOR_DIVISIONS, removeColorDivision, sliderBounds } from "@/lib/utils";
 import { addGraphSeries, LIVE_SPANS, MAX_GRAPH_SERIES, normalizeGraphSeries, normalizeLiveSpan, normalizeSampleEvery, retentionText } from "@/lib/graph";
+import { readPage, resumeUser, writePage } from "@/lib/resume";
 import { WEBHOOK_CONTENT_TYPES, webhookContentType } from "@/lib/webhook";
 import { Canvas, WidgetPalette } from "@/components/Canvas";
 import { Button } from "@/components/ui/button";
@@ -118,7 +120,9 @@ export function ProjectBoardPage() {
         setProjectKeyId(p.project.device_key_id ?? "");
         setKeys(k.keys);
         setProjects(list.projects);
-        setLayout(parseLayout(p.project.layout_json));
+        const parsed = parseLayout(p.project.layout_json);
+        const savedPage = rememberedPageId(parsed, readPage(resumeUser(), id));
+        setLayout(savedPage ? activatePage(parsed, savedPage) : parsed);
         await loadPins();
         setValues((current) => {
           const next = { ...current };
@@ -170,6 +174,13 @@ export function ProjectBoardPage() {
     saveReady.current = false;
     saveDirty.current = false;
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !project) return;
+    const userId = resumeUser();
+    if (!userId) return;
+    writePage(userId, id, layout.activePageId);
+  }, [id, project, layout.activePageId]);
 
   useEffect(() => {
     if (!id || !project || project.access === "view") return;

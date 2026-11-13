@@ -14,15 +14,15 @@ int main() {
 
 #if defined(BOXIO_EXPECT_CONFIG)
   if (BOXIO_BUF != 300 || BOXIO_MAX_TIMERS != 8) return fail("config override");
-  if (BOXIO_MAX_PENDING != 4 || BOXIO_PENDING_LEN != 40) return fail("config left the other small sizes");
+  if (BOXIO_MAX_PENDING != 2 || BOXIO_PENDING_LEN != 24) return fail("config left the other small sizes");
 #elif defined(BOXIO_EXPECT_SMALL)
   if (BOXIO_AVR_SMALL != 1) return fail("small flag");
-  if (BOXIO_BUF != 192) return fail("small buf");
-  if (BOXIO_VW_VALUE != 160 || BOXIO_VW_ENCODE != 160 || BOXIO_VW_PATH != 200) return fail("small vw");
-  if (BOXIO_PROP_VALUE != 120 || BOXIO_PROP_PATH != 220 || BOXIO_CMD_VALUE != 96) return fail("small prop");
-  if (BOXIO_MAX_TIMERS != 6) return fail("small timers");
-  if (BOXIO_MAX_PENDING != 4 || BOXIO_PENDING_LEN != 40) return fail("small pending");
-  if (BOXIO_WATCH_HOST != 48) return fail("small watch");
+  if (BOXIO_BUF != 160) return fail("small buf");
+  if (BOXIO_VW_VALUE != 64 || BOXIO_VW_ENCODE != 96 || BOXIO_VW_PATH != 128) return fail("small vw");
+  if (BOXIO_PROP_VALUE != 80 || BOXIO_PROP_PATH != 160 || BOXIO_CMD_VALUE != 48) return fail("small prop");
+  if (BOXIO_MAX_TIMERS != 4) return fail("small timers");
+  if (BOXIO_MAX_PENDING != 2 || BOXIO_PENDING_LEN != 24) return fail("small pending");
+  if (BOXIO_WATCH_HOST != 32) return fail("small watch");
 #elif defined(BOXIO_EXPECT_MEGA)
   if (BOXIO_AVR_SMALL != 0) return fail("mega flag");
   if (BOXIO_BUF != 512) return fail("mega buf");
